@@ -1,0 +1,13 @@
+name = "PointSpreadFunctions"
+uuid = "59a21e54-00bc-4653-8d10-290de9306ebc"
+authors = ["Éric Thiébaut <eric.thiebaut@univ-lyon1.fr>"]
+version = "0.1.0"
+
+[compat]
+julia = "1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
