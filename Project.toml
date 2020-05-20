@@ -6,6 +6,10 @@ version = "0.1.0"
 [compat]
 julia = "1"
 
+[deps]
+OptimPack = "04a3d532-ba69-5937-989a-472689bdb720"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
