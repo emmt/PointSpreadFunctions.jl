@@ -11,8 +11,11 @@ using ..PointSpreadFunctions
 using ..PointSpreadFunctions: AbstractPSF
 import ..PointSpreadFunctions: fit
 
+# An N-dimensional Region Of Interest (ROI).
+const ROI{N} = NTuple{N,Union{Colon,AbstractUnitRange{<:Integer}}}
+
 """
-    fit(psf, pos, [wgt,] dat; nonnegative=false) -> psf′, pos′
+    fit(psf, pos, [wgt,] dat[, roi]; nonnegative=false) -> psf′, pos′
 
 fits a given *Point Spread Function* (PSF) model on data `dat` with
 (optional) respective weights `wgt`.  Argument `psf` is a PSF instance to
@@ -28,6 +31,19 @@ Keyword `nonnegative` indicates whether the intensity of the PSF should be
 nonnegative or not.  Keyword `rho = (rhobeg,rhoend)` may be used to specify
 the initial and final precision on the parameters.  Additional keywords may
 be specified and are passed to the minimizer.
+
+An optional *Region Of Interest* (ROI) may be specified by argument `roi`
+as an `N`-tuple of index ranges or colons.  This is useful to limit the
+region used to perform the fit.  For example:
+
+    fit(GaussianPSF(2.5), (23,12), dat, (10:30, :))
+
+will fit a Gaussian PSF model on sub-array `dat[10:30,:]`.  The advantages
+of specifying a ROI is that the relative position of the ROI is taken into
+account in the initial and final position and that a view is used instead
+of extracting a sub-array.  Specifying a ROI alos works for weighted data.
+Non-rectangular ROIs can be emulated by having weights equal to zero where
+data should be ignored.
 
 """
 function fit(psf::PSF,
@@ -59,6 +75,45 @@ function fit(psf::PSF,
                            x, rho...; kwds...)
     return PSF(x[3:N+2]...), (x[1], x[2])
 end
+
+function fit(psf::AbstractPSF,
+             pos::NTuple{N,Real},
+             dat::AbstractArray{T,N},
+             roi::ROI{N};
+             kwds...) where {T<:AbstractFloat,N}
+    off = offsets(dat, roi)
+    psf1, pos1 = fit(psf, pos .- off,
+                     view(dat, roi...); kwds...)
+    return psf1, (pos1 .+ off)
+end
+
+function fit(psf::AbstractPSF,
+             pos::NTuple{N,Real},
+             wgt::AbstractArray{T,N},
+             dat::AbstractArray{T,N},
+             roi::ROI{N};
+             kwds...) where {T<:AbstractFloat,N}
+    off = offsets(dat, roi)
+    psf1, pos1 = fit(psf, pos .- off,
+                     view(wgt, roi...), view(dat, roi...); kwds...)
+    return psf1, (pos1 .+ off)
+end
+
+offsets(A::AbstractArray{<:Any,N}, roi::ROI{N}) where {N} =
+    offsets(axes(A), roi)
+
+function offsets(inds::NTuple{N,AbstractUnitRange{<:Integer}},
+                 roi::ROI{N}) where {N}
+    offset(I::AbstractUnitRange{<:Integer}, ::Colon) =
+        to_int(first(I)) - 1
+    offset(I::AbstractUnitRange{<:Integer}, J::AbstractUnitRange{<:Integer}) =
+        to_int(first(J)) - 1
+    map(offset, inds, roi)
+end
+
+to_int(x::Int) = x
+to_int(x::Integer) = Int(x)
+
 
 """
     objfun([wgt,] dat, α, mdl, x0, y0)
