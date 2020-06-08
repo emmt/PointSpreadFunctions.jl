@@ -43,26 +43,31 @@ using Test
     end
     for psf in (AiryPSF(1.1), AiryPSF(1.2, 0.3),
                 CauchyPSF(1.8), GaussianPSF(2.7),
-                MoffatPSF(1.4, 0.5)),
-        (x,y) in ((1.23, -0.12), (-0.7, sqrt(2)))
-        @test psf(x, y) ≈ psf(hypot(x,y))
-        for T in (Float32, Float64)
-            @test psf(T, x, y) ≈ T(psf(x,y))
-            @test psf(T, hypot(x,y)) ≈ T(psf(hypot(x,y)))
-            @test psf(T, x, y) ≈ psf(T, hypot(x,y))
+                MoffatPSF(1.4, 0.5))
+        # Check peak PSF is 1 at (0,0).
+        @test psf(0) == 1
+        @test psf(0, 0) == 1
+
+        for (x,y) in ((1.23, -0.12), (-0.7, sqrt(2)))
+            @test psf(x, y) ≈ psf(hypot(x,y))
+            for T in (Float32, Float64)
+                @test psf(T, x, y) ≈ T(psf(x,y))
+                @test psf(T, hypot(x,y)) ≈ T(psf(hypot(x,y)))
+                @test psf(T, x, y) ≈ psf(T, hypot(x,y))
+            end
         end
     end
 
-    let psf = AiryPSF(5.4, 0.4),
+    let psf = AiryPSF(5.4, 0.33),
         mdl = psf((x .- x0), (y .- y0)'),
         dat = 3.1*mdl + 0.1*randn(size(mdl)),
         wgt = ones(eltype(dat), size(dat))
 
         for (psf1, pos1) in (
-            PointSpreadFunctions.fit(AiryPSF(5, 0.3), (6,11), dat;
+            PointSpreadFunctions.fit(AiryPSF(5, 0.3), (7,9), dat;
                                      nonnegative=true, rho=(0.03,1e-8),
                                      maxeval=200),
-            PointSpreadFunctions.fit(AiryPSF(5, 0.3), (6,11), wgt, dat;
+            PointSpreadFunctions.fit(AiryPSF(5, 0.3), (7,9), wgt, dat;
                                      nonnegative=true, rho=(0.03,1e-8),
                                      maxeval=200),
         )
