@@ -79,27 +79,29 @@ See also [`CauchyPSF`](@ref), [`GaussianPSF`](@ref), [`MoffatPSF`](@ref).
 
 """ AiryPSF
 
-struct AiryPSF <: AbstractPSF{2}
+struct AiryPSF{A} <: AbstractPSF{2}
     _prm::NTuple{2,Float64}
     _a::Float64
     _c::Float64
-    _o::Bool
-    function AiryPSF(lim::Real, eps::Real = 0.0)
+    function AiryPSF{A}(lim::Real, eps::Real = 0.0) where {A}
         (isfinite(lim) && lim > 0.0) ||
             throw_bad_argument("bad diffraction limit value")
         (isfinite(eps) && 0.0 ≤ eps < 1.0) ||
             throw_bad_argument("out of range central obscuration ratio")
-        obstrucated = (eps > 0.0)
-        a = obstrucated ? 2.0/((1.0 - eps)*(1.0 + eps)) : 2.0
-        return new((lim, eps), a, pi/lim, obstrucated)
+        @assert isa(A, Bool) && (eps != 0.0) == A
+        a = A ? 2.0/((1.0 - eps)*(1.0 + eps)) : 2.0
+        return new{A}((lim, eps), a, pi/lim)
     end
 end
+
+AiryPSF(lim::Real) = AiryPSF{false}(lim, 0.0)
+AiryPSF(lim::Real, eps::Real) = AiryPSF{eps != 0}(lim, eps)
 
 @noinline throw_bad_argument(args...) = throw_bad_argument(string(args...))
 @noinline throw_bad_argument(mesg::String) = throw(ArgumentError(mesg))
 
 @inline parameters(P::AiryPSF) = getfield(P, :_prm)
-@inline obstrucated(P::AiryPSF) = getfield(P, :_o)
+@inline obstrucated(::AiryPSF{A}) where {A} = A
 
 @inline _get_lim(P::AiryPSF) = @inbounds P[1]
 @inline _get_eps(P::AiryPSF) = @inbounds P[2]
@@ -116,75 +118,65 @@ function getfwhm(P::AiryPSF; kwds...)
 end
 
 @inline _circular_amplitude(a::T, c::T, r::T) where {T<:AbstractFloat} =
-    (r == zero(T) ? one(T) : (u = c*r; (a/u)*J1(u)))
+    r == zero(T) ? one(T) : (u = c*r; (a/u)*J1(u))
 
 @inline _annular_amplitude(a::T, c::T, e::T, r::T) where {T<:AbstractFloat} =
-    (r == zero(T) ? one(T) : (u = c*r; (a/u)*(J1(u) - e*J1(e*u))))
+    r == zero(T) ? one(T) : (u = c*r; (a/u)*(J1(u) - e*J1(e*u)))
 
-@inline _airy1(a::T, c::T, r::T) where {T<:AbstractFloat} =
-    (p = _circular_amplitude(a, c, r); p*p)
+# No central obscuration.
+@inline _airy(a::T, c::T, r::T) where {T<:AbstractFloat} =
+    r == zero(T) ? one(T) : (u = c*r; ((a/u)*J1(u))^2)
 
-@inline _airy1(a::T, c::T, x::T, y::T) where {T<:AbstractFloat} =
-    _airy1(a, c, hypot(x, y))
+# With central obscuration.
+@inline _airy(a::T, c::T, e::T, r::T) where {T<:AbstractFloat} =
+    r == zero(T) ? one(T) : (u = c*r; ((a/u)*(J1(u) - e*J1(e*u)))^2)
 
-@inline _airy2(a::T, c::T, e::T, r::T) where {T<:AbstractFloat} =
-    (p = _annular_amplitude(a, c, e, r); p*p)
+(P::AiryPSF{false})(::Type{T}, r::Real) where {T<:AbstractFloat} =
+    _airy(to_float(T, _get_a(P)),
+          to_float(T, _get_c(P)),
+          to_float(T, r))
 
-@inline _airy2(a::T, c::T, e::T, x::T, y::T) where {T<:AbstractFloat} =
-    _airy2(a, c, e, hypot(x, y))
-
-(P::AiryPSF)(::Type{Float64}, r::Float64) =
-    (obstrucated(P) ?
-     _airy2(_get_a(P), _get_c(P), _get_eps(P), r) :
-     _airy1(_get_a(P), _get_c(P),        r))
-
-(P::AiryPSF)(::Type{T}, r::Real) where {T<:AbstractFloat} =
-    (obstrucated(P) ?
-     _airy2(_get_a(P), _get_c(P), _get_eps(P), T(r)) :
-     _airy1(_get_a(P), _get_c(P),              T(r)))
-
-(P::AiryPSF)(::Type{Float64}, x::Float64, y::Float64) =
-    (obstrucated(P) ?
-     _airy2(_get_a(P), _get_c(P), _get_eps(P), x, y) :
-     _airy1(_get_a(P), _get_c(P),              x, y))
+(P::AiryPSF{true})(::Type{T}, r::Real) where {T<:AbstractFloat} =
+    _airy(to_float(T, _get_a(P)),
+          to_float(T, _get_c(P)),
+          to_float(T, _get_eps(P)),
+          to_float(T, r))
 
 (P::AiryPSF)(::Type{T}, x::Real, y::Real) where {T<:AbstractFloat} =
-    (obstrucated(P) ?
-     _airy2(_get_a(P), _get_c(P), _get_eps(P), T(x), T(y)) :
-     _airy1(_get_a(P), _get_c(P),              T(x), T(y)))
+    P(T, hypot(to_float(T, x), to_float(T, y)))
 
-function (P::AiryPSF)(::Type{T}, r::AbstractArray{T,N}) where {T<:AbstractFloat, N}
-    a, c, e = T(_get_a(P)), T(_get_c(P)), T(_get_eps(P))
-    return (obstrucated(P) ?
-            map((r) -> _airy2(a, c, e, r), r) :
-            map((r) -> _airy1(a, c,    r), r))
+function (P::AiryPSF{false})(::Type{T},
+                             r::AbstractArray{<:Real}) where {T<:AbstractFloat}
+    a = to_float(T, _get_a(P))
+    c = to_float(T, _get_c(P))
+    map(r -> _airy(a, c, to_float(T, r)), r)
 end
 
-function (P::AiryPSF)(::Type{T}, r::AbstractArray) where {T<:AbstractFloat}
-    a, c, e = T(_get_a(P)), T(_get_c(P)), T(_get_eps(P))
-    return (obstrucated(P) ?
-            map((r) -> _airy2(a, c, e, T(r)), r) :
-            map((r) -> _airy1(a, c,    T(r)), r))
+function (P::AiryPSF{true})(::Type{T},
+                            r::AbstractArray{<:Real}) where {T<:AbstractFloat}
+    a = to_float(T, _get_a(P))
+    c = to_float(T, _get_c(P))
+    e = to_float(T, _get_eps(P))
+    map(r -> _airy(a, c, e, to_float(T, r)), r)
 end
 
-function (P::AiryPSF)(::Type{T},
-                   x::AbstractArray{T,Nx},
-                   y::AbstractArray{T,Ny}) where {T<:AbstractFloat,Nx,Ny}
-    a, c, e = T(_get_a(P)), T(_get_c(P)), T(_get_eps(P))
-    return (obstrucated(P) ?
-            broadcast((x, y) -> _airy2(a, c, e, x, y), x, y) :
-            broadcast((x, y) -> _airy1(a, c,    x, y), x, y))
+function (P::AiryPSF{false})(::Type{T},
+                             x::AbstractArray{<:Real},
+                             y::AbstractArray{<:Real}) where {T<:AbstractFloat}
+    a = to_float(T, _get_a(P))
+    c = to_float(T, _get_c(P))
+    broadcast((x, y) -> _airy(a, c, hypot(to_float(T, x), to_float(T, y))),
+              x, y)
 end
 
-function (P::AiryPSF)(::Type{T},
-                   x::AbstractArray{Tx,Nx},
-                   y::AbstractArray{Ty,Ny}) where {T<:AbstractFloat,
-                                                   Tx<:Real,Nx,Ty<:Real,Ny}
-
-    a, c, e = T(_get_a(P)), T(_get_c(P)), T(_get_eps(P))
-    return (obstrucated(P) ?
-            broadcast((x, y) -> _airy2(a, c, e, T(x), T(y)), x, y) :
-            broadcast((x, y) -> _airy1(a, c,    T(x), T(y)), x, y))
+function (P::AiryPSF{true})(::Type{T},
+                             x::AbstractArray{<:Real},
+                             y::AbstractArray{<:Real}) where {T<:AbstractFloat}
+    a = to_float(T, _get_a(P))
+    c = to_float(T, _get_c(P))
+    e = to_float(T, _get_eps(P))
+    broadcast((x, y) -> _airy(a, c, e, hypot(to_float(T, x), to_float(T, y))),
+              x, y)
 end
 
 """
@@ -264,41 +256,27 @@ end
 
 @inline _cauchy(q::T, x::T, y::T) where {T<:AbstractFloat} = q/(x*x + y*y + q)
 
-(P::CauchyPSF)(::Type{Float64}, r::Float64) =
-    _cauchy(_get_q(P), r)
-
 (P::CauchyPSF)(::Type{T}, r::Real) where {T<:AbstractFloat} =
-    _cauchy(T(_get_q(P)), T(r))
-
-(P::CauchyPSF)(::Type{Float64}, x::Float64, y::Float64) =
-    _cauchy(_get_q(P), x, y)
+    _cauchy(to_float(T, _get_q(P)),
+            to_float(T, r))
 
 (P::CauchyPSF)(::Type{T}, x::Real, y::Real) where {T<:AbstractFloat} =
-    _cauchy(T(_get_q(P)), T(x), T(y))
+    _cauchy(to_float(T, _get_q(P)),
+            to_float(T, x),
+            to_float(T, y))
 
-function (P::CauchyPSF)(::Type{T}, r::AbstractArray{T,N}) where {T<:AbstractFloat, N}
-    q = T(_get_q(P))
-    map((r) -> _cauchy(q, r), r)
-end
-
-function (P::CauchyPSF)(::Type{T}, r::AbstractArray) where {T<:AbstractFloat}
-    q = T(_get_q(P))
-    map((r) -> _cauchy(q, T(r)), r)
+function (P::CauchyPSF)(::Type{T},
+                        r::AbstractArray{<:Real}) where {T<:AbstractFloat}
+    q = to_float(T, _get_q(P))
+    map(r -> _cauchy(q, to_float(T, r)), r)
 end
 
 function (P::CauchyPSF)(::Type{T},
-                        x::AbstractArray{T,Nx},
-                        y::AbstractArray{T,Ny}) where {T<:AbstractFloat,Nx,Ny}
-    q = T(_get_q(P))
-    broadcast((x, y) -> _cauchy(q, x, y), x, y)
-end
+                        x::AbstractArray{<:Real},
+                        y::AbstractArray{<:Real}) where {T<:AbstractFloat}
 
-function (P::CauchyPSF)(::Type{T}, x::AbstractArray{Tx,Nx},
-                        y::AbstractArray{Ty,Ny}) where {T<:AbstractFloat,
-                                                        Tx<:Real,Nx,Ty<:Real,Ny}
-
-    q = T(_get_q(P))
-    broadcast((x, y) -> _cauchy(q, T(x), T(y)), x, y)
+    q = to_float(T, _get_q(P))
+    broadcast((x, y) -> _cauchy(q, to_float(T, x), to_float(T, y)), x, y)
 end
 
 
@@ -337,48 +315,30 @@ end
 
 @inline _gauss(q::T, x::T, y::T) where {T<:AbstractFloat} = exp((x*x + y*y)*q)
 
-(P::GaussianPSF)(::Type{Float64}, r::Float64) =
-    _gauss(_get_q(P), r)
-
 (P::GaussianPSF)(::Type{T}, r::Real) where {T<:AbstractFloat} =
-    _gauss(T(_get_q(P)), T(r))
-
-(P::GaussianPSF)(::Type{Float64}, x::Float64, y::Float64) =
-    _gauss(_get_q(P), x, y)
+    _gauss(to_float(T, _get_q(P)),
+           to_float(T, r))
 
 (P::GaussianPSF)(::Type{T}, x::Real, y::Real) where {T<:AbstractFloat} =
-    _gauss(T(_get_q(P)), T(x), T(y))
+    _gauss(to_float(T, _get_q(P)),
+           to_float(T, x),
+           to_float(T, y))
 
 function (P::GaussianPSF)(::Type{T},
-                          r::AbstractArray{T,N}) where {T<:AbstractFloat, N}
-    q = T(_get_q(P))
-    map((r) -> _gauss(q, r), r)
-end
-
-function (P::GaussianPSF)(::Type{T}, r::AbstractArray) where {T<:AbstractFloat}
-    q = T(_get_q(P))
-    map((r) -> _gauss(q, T(r)), r)
+                        r::AbstractArray{<:Real}) where {T<:AbstractFloat}
+    q = to_float(T, _get_q(P))
+    map(r -> _gauss(q, to_float(T, r)), r)
 end
 
 function (P::GaussianPSF)(::Type{T},
-                          x::AbstractArray{T,N},
-                          y::AbstractArray{T,N}) where {T<:AbstractFloat,N}
-    q = T(_get_q(P))
-    if size(x) == size(y)
-        return broadcast((x, y) -> _gauss(q, x, y), x, y)
-    else
-        return P(T,x).*P(T,y)
-    end
-end
+                        x::AbstractArray{<:Real},
+                        y::AbstractArray{<:Real}) where {T<:AbstractFloat}
 
-function (P::GaussianPSF)(::Type{T}, x::AbstractArray{Tx,Nx},
-                          y::AbstractArray{Ty,Ny}) where {T<:AbstractFloat,
-                                                          Tx<:Real,Nx,Ty<:Real,Ny}
-    q = T(_get_q(P))
-    if size(x) == size(y)
-        return broadcast((x, y) -> _gauss(q, T(x), T(y)), x, y)
+    if axes(x) == axes(y)
+        q = to_float(T, _get_q(P))
+        broadcast((x, y) -> _gauss(q, to_float(T, x), to_float(T, y)), x, y)
     else
-        return P(T,x).*P(T,y)
+        P(T,x).*P(T,y)
     end
 end
 
@@ -427,44 +387,33 @@ end
 @inline _moffat(p::T, q::T, x::T, y::T) where {T<:AbstractFloat} =
     ((x*x + y*y)*q + one(T))^p
 
-(P::MoffatPSF)(::Type{Float64}, r::Float64) =
-    _moffat(_get_q(P), r)
-
 (P::MoffatPSF)(::Type{T}, r::Real) where {T<:AbstractFloat} =
-    _moffat(T(_get_q(P)), T(r))
-
-(P::MoffatPSF)(::Type{Float64}, x::Float64, y::Float64) =
-    _moffat(_get_q(P), x, y)
+    _moffat(to_float(T, _get_p(P)),
+            to_float(T, _get_q(P)),
+            to_float(T, r))
 
 (P::MoffatPSF)(::Type{T}, x::Real, y::Real) where {T<:AbstractFloat} =
-    _moffat(T(_get_q(P)), T(x), T(y))
+    _moffat(to_float(T, _get_p(P)),
+            to_float(T, _get_q(P)),
+            to_float(T, x),
+            to_float(T, y))
 
 function (P::MoffatPSF)(::Type{T},
-                        r::AbstractArray{T,N}) where {T<:AbstractFloat,N}
-    q = T(_get_q(P))
-    map((r) -> _moffat(q, r), r)
-end
-
-function (P::MoffatPSF)(::Type{T}, r::AbstractArray) where {T<:AbstractFloat}
-    q = T(_get_q(P))
-    map((r) -> _moffat(q, T(r)), r)
-end
-
-function (P::MoffatPSF)(::Type{T},
-                        x::AbstractArray{T,Nx},
-                        y::AbstractArray{T,Ny}) where{T<:AbstractFloat,Nx,Ny}
-    q = T(_get_q(P))
-    broadcast((x, y) -> _moffat(q, x, y), x, y)
+                        r::AbstractArray{<:Real}) where {T<:AbstractFloat}
+    p = to_float(T, _get_p(P))
+    q = to_float(T, _get_q(P))
+    map(r -> _moffat(p, q, to_float(T, r)), r)
 end
 
 function (P::MoffatPSF)(::Type{T},
-                        x::AbstractArray{Tx,Nx},
-                        y::AbstractArray{Ty,Ny}) where {T<:AbstractFloat,
-                                                        Tx<:Real,Nx,Ty<:Real,Ny}
+                        x::AbstractArray{<:Real},
+                        y::AbstractArray{<:Real}) where {T<:AbstractFloat}
 
-    q = T(_get_q(P))
-    broadcast((x, y) -> _moffat(q, T(x), T(y)), x, y)
+    p = to_float(T, _get_p(P))
+    q = to_float(T, _get_q(P))
+    broadcast((x, y) -> _moffat(p, q, to_float(T, x), to_float(T, y)), x, y)
 end
+
 
 # Define methods common to all sub-types of AbstractPSF.
 for T in (:AiryPSF, :CauchyPSF, :GaussianPSF, :MoffatPSF)
@@ -475,3 +424,12 @@ for T in (:AiryPSF, :CauchyPSF, :GaussianPSF, :MoffatPSF)
         (P::$T)(x::AbstractArray, y::AbstractArray) = P(Float64, x, y)
     end
 end
+
+"""
+    to_float(T, x)
+
+lazily yields `x` converted to floating-point type `T`.
+
+"""
+to_float(::Type{T}, x::T   ) where {T<:AbstractFloat} = x
+to_float(::Type{T}, x::Real) where {T<:AbstractFloat} = T(x)

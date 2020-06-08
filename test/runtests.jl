@@ -29,6 +29,9 @@ using Test
         end
     end
 
+    @test_throws ArgumentError AiryPSF(-1.0)
+    @test_throws ArgumentError AiryPSF(1.0, 1.1)
+
     let psf = AiryPSF(1.0)
         @test psf[:] === (1.0, 0.0)
         @test getfwhm(psf) ≈ PointSpreadFunctions.AIRY_FWHM
@@ -37,6 +40,17 @@ using Test
                                      PointSpreadFunctions.AIRY_THIRD_ZERO,
                                      PointSpreadFunctions.AIRY_FOURTH_ZERO,
                                      PointSpreadFunctions.AIRY_FIFTH_ZERO] atol=0.01
+    end
+    for psf in (AiryPSF(1.1), AiryPSF(1.2, 0.3),
+                CauchyPSF(1.8), GaussianPSF(2.7),
+                MoffatPSF(1.4, 0.5)),
+        (x,y) in ((1.23, -0.12), (-0.7, sqrt(2)))
+        @test psf(x, y) ≈ psf(hypot(x,y))
+        for T in (Float32, Float64)
+            @test psf(T, x, y) ≈ T(psf(x,y))
+            @test psf(T, hypot(x,y)) ≈ T(psf(hypot(x,y)))
+            @test psf(T, x, y) ≈ psf(T, hypot(x,y))
+        end
     end
 
     let psf = AiryPSF(5.4, 0.4),
