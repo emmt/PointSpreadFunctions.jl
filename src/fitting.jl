@@ -11,7 +11,8 @@ using ..PointSpreadFunctions
 using ..PointSpreadFunctions:
     AbstractPSF,
     throw_bad_argument,
-    check_parameters
+    check_parameters,
+    to_float
 import ..PointSpreadFunctions: fit
 
 # An N-dimensional Region Of Interest (ROI).
@@ -148,6 +149,16 @@ yields the value of:
 where `c = f(0, x0, y0)` is an additive constant independent
 of `(x0,y0)`.
 
+As a convenience:
+
+    objfun([wgt,] dat, trustvalues=false)
+
+yields the value of the objective function when `α = 0`.  If optional
+argument `trustvalues` is false, the data and weights values are checked
+(data must have finite values and weights must be finite and nonnegative);
+if `trustvalues` is true, it assumed that the data and the weights have
+correct values and their values are not checked.
+
 """ objfun
 
 function objfun(dat::AbstractArray{T,2},
@@ -208,6 +219,47 @@ function objfun(wgt::AbstractArray{T,2},
                 x0::Real,
                 y0::Real) where {T<:AbstractFloat}
     objfun(wgt, dat, T(alpha), mdl, T(x0), T(y0))
+end
+
+function objfun(dat::AbstractArray{T},
+                trustvalues::Bool = false) where {T<:AbstractFloat}
+    c = zero(Float64)
+    if trustvalues
+        @inbounds @simd for i in eachindex(dat)
+            c += to_float(Float64, dat[i]^2)
+        end
+    else
+        dflags = true
+        @inbounds @simd for i in eachindex(dat)
+            dflags &= isfinite(dat[i])
+            c += to_float(Float64, dat[i]^2)
+        end
+        dflags || throw_bad_argument("there are invalid data values")
+    end
+    return c
+end
+
+function objfun(wgt::AbstractArray{T,N},
+                dat::AbstractArray{T,N},
+                trustvalues::Bool = false) where {T<:AbstractFloat,N}
+    @assert axes(wgt) == axes(dat)
+    c = zero(Float64)
+    if trustvalues
+        @inbounds @simd for i in eachindex(wgt, dat)
+            c += to_float(Float64, wgt[i]*dat[i]^2)
+        end
+    else
+        wflags = true
+        dflags = true
+        @inbounds @simd for i in eachindex(wgt, dat)
+            wflags &= isfinite(wgt[i]) & wgt[i] ≥ zero(wgt[i])
+            dflags &= isfinite(dat[i])
+            c += to_float(Float64, wgt[i]*dat[i]^2)
+        end
+        wflags || throw_bad_argument("there are invalid weights")
+        dflags || throw_bad_argument("there are invalid data values")
+    end
+    return c
 end
 
 function objfun(dat::AbstractArray{T,2},
