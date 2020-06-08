@@ -226,15 +226,17 @@ end
 
 """
     P = CauchyPSF(fwhm)
+
+defines a Cauchy *Point Spread Function* (PSF) `P` (or Lorentzian) of full
+width at half maximum `fwhm` which can be used as:
+
     P([T,] r)
     P([T,] x, y)
 
-defines a Cauchy *Point Spread Function* (PSF) `P` (or Lorentzian) of full
-width at half maximum `fwhm` which can be used to compute the PSF at
-distance `r` or position `(x,y)` relative to the position of the source and
-normalized so that the peak value of the PSF is one.  Optional argument `T`
-is the floating-point type of the result.  Arguments `fwhm`, `r`, `x` and
-`y` are in the same units.
+to compute the PSF at distance `r` or position `(x,y)` relative to the
+position of the source and normalized so that the peak value of the PSF is
+one.  Optional argument `T` is the floating-point type of the result.
+Arguments `fwhm`, `r`, `x` and `y` are in the same units.
 
 See also [`AiryPSF`](@ref), [`GaussianPSF`](@ref), [`MoffatPSF`](@ref).
 
@@ -288,15 +290,17 @@ end
 
 """
     P = GaussianPSF(fwhm)
+
+defines a Gaussian *Point Spread Function* (PSF) `P` of full width at half
+maximum `fwhm` which can be used as:
+
     P([T,] r)
     P([T,] x, y)
 
-defines a Gaussian *Point Spread Function* (PSF) `P` of full width at half
-maximum `fwhm` which can be used to compute the PSF at distance `r` or
-position `(x,y)` relative to the position of the source and normalized so
-that the peak value of the PSF is one.  Optional argument `T` is the
-floating-point type of the result.  Arguments `fwhm`, `r`, `x` and `y` are
-in the same units.
+to compute the PSF at distance `r` or position `(x,y)` relative to the
+position of the source and normalized so that the peak value of the PSF is
+one.  Optional argument `T` is the floating-point type of the result.
+Arguments `fwhm`, `r`, `x` and `y` are in the same units.
 
 See also [`AiryPSF`](@ref), [`CauchyPSF`](@ref), [`MoffatPSF`](@ref).
 
@@ -354,15 +358,17 @@ end
 
 """
     P = MoffatPSF(fwhm, beta)
+
+defines a Moffat PSF `P` of full width at half maximum `fwhm` and exponent
+`beta` which can be used as:
+
     P([T,] r)
     P([T,] x, y)
 
-defines a Moffat PSF `P` of full width at half maximum `fwhm` and exponent
-`beta` which can be used to compute the PSF at distance `r` or position
-`(x,y)` relative to the position of the source and normalized so that the
-peak value of the PSF is one.  Optional argument `T` is the floating-point
-type of the result.  Arguments `fwhm`, `r`, `x` and `y` are in the same
-units.
+to compute the PSF at distance `r` or position `(x,y)` relative to the
+position of the source and normalized so that the peak value of the PSF is
+one.  Optional argument `T` is the floating-point type of the result.
+Arguments `fwhm`, `r`, `x` and `y` are in the same units.
 
 See also [`AiryPSF`](@ref), [`CauchyPSF`](@ref), [`GaussianPSF`](@ref).
 
