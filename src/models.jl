@@ -14,9 +14,9 @@ const AIRY_FIFTH_ZERO  = 5.24
 
 """
 
-Instances of sub-types of `AbstractPSF{N}` are used to store the parameters
-of various *Point Spread Functions* (PSF) models, `N` is the number of
-parameters.  Let `P` be such an instance, then:
+Instances of sub-types of `PointSpreadFunctions.AbstractPSF{N}` are used to
+store the parameters of various *Point Spread Functions* (PSF) models, `N`
+is the number of parameters.  Let `P` be such an instance, then:
 
     P([T,] r)
     P([T,] x, y)
@@ -53,8 +53,7 @@ yields the full width at half maximum (FWHM) of point spread function `P`.
 Computing the result may require some calculations, so it is better to save
 the result if this value must be used several times.
 
-"""
-function getfwhm end
+""" getfwhm
 
 """
     P = AiryPSF(lim [, eps=0])
