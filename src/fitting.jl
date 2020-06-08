@@ -6,11 +6,10 @@
 
 module Fitting
 
-export fit
-
 import OptimPack.Powell.Newuoa
 using ..PointSpreadFunctions
 using ..PointSpreadFunctions: AbstractPSF
+import ..PointSpreadFunctions: fit
 
 """
     fit(psf, pos, [wgt,] dat; nonnegative=false) -> psf′, pos′

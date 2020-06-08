@@ -12,8 +12,7 @@ export
     GaussianPSF,
     MoffatPSF,
     getfwhm,
-    findzeros,
-    findzeros!
+    findzeros
 
 import Base: getindex
 using Base: @propagate_inbounds
@@ -22,8 +21,9 @@ using OptimPack.Brent: fzero
 
 using SpecialFunctions
 
+function fit end
+
 include("models.jl")
 include("fitting.jl")
-import .Fitting: fit
 
 end # module
