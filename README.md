@@ -1,6 +1,5 @@
 # PointSpreadFunctions
 
-[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://emmt.github.io/PointSpreadFunctions.jl/stable)
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://emmt.github.io/PointSpreadFunctions.jl/dev)
 [![Build Status](https://travis-ci.org/emmt/PointSpreadFunctions.jl.svg?branch=master)](https://travis-ci.org/emmt/PointSpreadFunctions.jl)
 [![Build Status](https://ci.appveyor.com/api/projects/status/github/emmt/PointSpreadFunctions.jl?svg=true)](https://ci.appveyor.com/project/emmt/PointSpreadFunctions-jl)
