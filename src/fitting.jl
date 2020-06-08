@@ -58,10 +58,9 @@ function fit(psf::PSF,
              maxeval::Integer = 50*(N + 2),
              kwds...) where {T<:AbstractFloat,
                              N,PSF<:AbstractPSF{N}}
-    x = T[pos..., psf[:]...]
-    ans = Newuoa.minimize!(x -> (check_parameters(PSF, x[3:N+2]...) ?
-                                 objfun(dat, PSF(x[3:N+2]...),
-                                        x[1], x[2], nonnegative) : 0.0),
+    # Newuoa uses double precision floating-point.
+    x = Cdouble[pos..., psf[:]...]
+    ans = Newuoa.minimize!(x -> objfun(dat, PSF, x, nonnegative),
                            x, rho...; maxeval=Int(maxeval), kwds...)
     return PSF(x[3:N+2]...), (x[1], x[2])
 end
@@ -76,10 +75,9 @@ function fit(psf::PSF,
              kwds...) where {T<:AbstractFloat,
                              N,PSF<:AbstractPSF{N}}
     @assert axes(wgt) == axes(dat)
-    x = T[pos..., psf[:]...]
-    ans = Newuoa.minimize!(x -> (check_parameters(PSF, x[3:N+2]...) ?
-                                 objfun(wgt, dat, PSF(x[3:N+2]...),
-                                        x[1], x[2], nonnegative) : 0.0),
+    # Newuoa uses double precision floating-point.
+    x = Cdouble[pos..., psf[:]...]
+    ans = Newuoa.minimize!(x -> objfun(wgt, dat, PSF, x, nonnegative),
                            x, rho...; maxeval=Int(maxeval), kwds...)
     return PSF(x[3:N+2]...), (x[1], x[2])
 end
@@ -357,6 +355,46 @@ function objfun(wgt::AbstractArray{T,2},
         return -(b/a)*b
     else
         return zero(Float64)
+    end
+end
+
+# These methods are designed for NEWUOA.
+function objfun(dat::AbstractArray{T,2},
+                ::Type{PSF},
+                prm::Vector{Cdouble},
+                nonnegative::Bool) where {T<:AbstractFloat,
+                                          N,PSF<:AbstractPSF{N}}
+    @assert length(prm) == N+2
+    mdl = _model(PSF, prm)
+    mdl === nothing ? zero(Cdouble) :
+        Cdouble(objfun(dat, mdl, prm[1], prm[2], nonnegative))
+end
+
+function objfun(wgt::AbstractArray{T,2},
+                dat::AbstractArray{T,2},
+                ::Type{PSF},
+                prm::Vector{Cdouble},
+                nonnegative::Bool) where {T<:AbstractFloat,
+                                          N,PSF<:AbstractPSF{N}}
+    @assert length(prm) == N+2
+    mdl = _model(PSF, prm)
+    mdl === nothing ? zero(Cdouble) :
+        Cdouble(objfun(wgt, dat, mdl, prm[1], prm[2], nonnegative))
+end
+
+@inline function _model(::Type{PSF},
+                        prm::Vector{Cdouble}) where {PSF<:AbstractPSF{1}}
+    @inbounds begin
+        p1 = prm[3]
+        check_parameters(PSF, p1) ? PSF(p1) : nothing
+    end
+end
+
+@inline function _model(::Type{PSF},
+                        prm::Vector{Cdouble}) where {PSF<:AbstractPSF{2}}
+    @inbounds begin
+        p1, p2 = prm[3], prm[4]
+        check_parameters(PSF, p1, p2) ? PSF(p1, p2) : nothing
     end
 end
 
