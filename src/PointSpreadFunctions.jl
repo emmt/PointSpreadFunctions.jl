@@ -17,7 +17,7 @@ export
 import Base: getindex
 using Base: @propagate_inbounds
 
-using OptimPack.Brent: fzero
+using OptimPack
 
 using SpecialFunctions
 
