@@ -97,6 +97,9 @@ end
 AiryPSF(lim::Real) = AiryPSF{false}(lim, 0.0)
 AiryPSF(lim::Real, eps::Real) = AiryPSF{eps != 0}(lim, eps)
 
+Base.show(io::IO, P::AiryPSF) =
+    print(io, "AiryPSF(", P[1], ",", P[2], ")")
+
 @noinline throw_bad_argument(args...) = throw_bad_argument(string(args...))
 @noinline throw_bad_argument(mesg::String) = throw(ArgumentError(mesg))
 
@@ -247,6 +250,9 @@ struct CauchyPSF <: AbstractPSF{1}
     end
 end
 
+Base.show(io::IO, P::CauchyPSF) =
+    print(io, "CauchyPSF(", P[1], ")")
+
 @inline getfwhm(P::CauchyPSF) = getfield(P, :fwhm)
 @inline parameters(P::CauchyPSF) = (getfwhm(P),)
 
@@ -305,6 +311,9 @@ struct GaussianPSF <: AbstractPSF{1}
         return new(fwhm, -log(2.0)*(2.0/fwhm)^2)
     end
 end
+
+Base.show(io::IO, P::GaussianPSF) =
+    print(io, "GaussianPSF(", P[1], ")")
 
 @inline getfwhm(P::GaussianPSF) = getfield(P, :fwhm)
 @inline parameters(P::GaussianPSF) = (getfwhm(P),)
@@ -372,6 +381,9 @@ struct MoffatPSF <: AbstractPSF{2}
     end
 end
 
+Base.show(io::IO, P::MoffatPSF) =
+    print(io, "MoffatPSF(", P[1], ",", P[2], ")")
+
 @inline getfwhm(P::MoffatPSF) = _get_fwhm(P)
 @inline parameters(P::MoffatPSF) =  getfield(P, :_prm)
 
@@ -379,7 +391,6 @@ end
 @inline _get_beta(P::MoffatPSF) = @inbounds P[2]
 @inline _get_p(P::MoffatPSF) = getfield(P, :_p)
 @inline _get_q(P::MoffatPSF) = getfield(P, :_q)
-
 
 @inline _moffat(p::T, q::T, r::T) where {T<:AbstractFloat} =
     (r*r*q + one(T))^p
