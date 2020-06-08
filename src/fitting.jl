@@ -6,6 +6,8 @@
 
 module Fitting
 
+export fit
+
 import OptimPack.Powell.Newuoa
 using ..PointSpreadFunctions
 using ..PointSpreadFunctions: AbstractPSF
@@ -13,18 +15,20 @@ using ..PointSpreadFunctions: AbstractPSF
 """
     fit(psf, pos, [wgt,] dat; nonnegative=false) -> psf′, pos′
 
-fits a given Point Spread Function (PSF) model on data `dat` with
+fits a given *Point Spread Function* (PSF) model on data `dat` with
 (optional) respective weights `wgt`.  Argument `psf` is a PSF instance to
-specify which PSF model to use and the initial parameters of the model.
-Argument `pos` is the initial PSF position.  The result is a 2-tuple with
-the fitted PSF model and position.
+specify which PSF model to use and its initial parameters.  Argument `pos`
+is the initial PSF position.  The result is a 2-tuple with the fitted PSF
+model and position.
 
-The fit is carried out by `OptimPack.Powell.Newuoa.minimize` method.
+The fit is carried out by `OptimPack.Powell.Newuoa.minimize` method.  The
+initial parameters should be close enough to the solution for the fit to
+behave correctly.
 
-Keyword `nonnegative` indicates whether the instensity of the PSF should be
+Keyword `nonnegative` indicates whether the intensity of the PSF should be
 nonnegative or not.  Keyword `rho = (rhobeg,rhoend)` may be used to specify
-the initial and final precision on the parameters.  Additional keywwords
-may be specified and are passed to the minimizer.
+the initial and final precision on the parameters.  Additional keywords may
+be specified and are passed to the minimizer.
 
 """
 function fit(psf::PSF,
@@ -35,7 +39,8 @@ function fit(psf::PSF,
              kwds...) where {T<:AbstractFloat,
                              N,PSF<:AbstractPSF{N}}
     x = T[pos..., psf[:]...]
-    ans = Newuoa.minimize!(x -> objfun1(dat, PSF(x[3:N+2]...), x[1], x[2], nonnegative),
+    ans = Newuoa.minimize!(x -> objfun(dat, PSF(x[3:N+2]...),
+                                       x[1], x[2], nonnegative),
                            x, rho...; kwds...)
     return PSF(x[3:N+2]...), (x[1], x[2])
 end
@@ -50,16 +55,105 @@ function fit(psf::PSF,
                              N,PSF<:AbstractPSF{N}}
     @assert axes(wgt) == axes(dat)
     x = T[pos..., psf[:]...]
-    ans = Newuoa.minimize!(x -> objfun1(wgt, dat, PSF(x[3:N+2]...), x[1], x[2], nonnegative),
+    ans = Newuoa.minimize!(x -> objfun(wgt, dat, PSF(x[3:N+2]...),
+                                       x[1], x[2], nonnegative),
                            x, rho...; kwds...)
     return PSF(x[3:N+2]...), (x[1], x[2])
 end
 
-function objfun0(dat::AbstractArray{T,2},
-                 alpha::T,
-                 mdl,
-                 x0::T,
-                 y0::T) where {T<:AbstractFloat}
+"""
+    objfun([wgt,] dat, α, mdl, x0, y0)
+
+yields the value of the objective function for PSF model `α*mdl(x-x0,y-y0)`
+and data `dat` with optional weights `wgt`.  The objective function is
+defined as:
+
+    f(α, x0, y0) = sum_{x,y} wgt[x,y]*(dat[x,y] - α*mdl(x-x0,y-y0))^2
+
+where the sum is evaluated for coordinates `(x,y)` taking all possible
+values for the 2-dimensional array `dat`.  If specified, weights `wgt` must
+all be nonnegative and have the same axes as `dat`; if not specified
+`wgt[x,y] = 1` for all `(x,y)` is assumed.
+
+The optimal value of the intensity parameter `α` may be automatically
+computed given the other parameters:
+
+    objfun([wgt,] dat, mdl, x0, y0, nonnegative=false)
+
+yields the value of:
+
+     min_α f(α, x0, y0) - c
+
+where `c = f(0, x0, y0)` is an additive constant independent
+of `(x0,y0)`.
+
+""" objfun
+
+function objfun(dat::AbstractArray{T,2},
+                mdl,
+                pos::NTuple{2,Real}) where {T<:AbstractFloat}
+    objfun(dat, mdl, T(pos[1]), T(pos[2]))
+end
+
+function objfun(wgt::AbstractArray{T,2},
+                dat::AbstractArray{T,2},
+                mdl,
+                pos::NTuple{2,Real}) where {T<:AbstractFloat}
+    objfun(wgt, dat, mdl, T(pos[1]), T(pos[2]))
+end
+
+function objfun(dat::AbstractArray{T,2},
+                alpha::Real,
+                mdl,
+                pos::NTuple{2,Real}) where {T<:AbstractFloat}
+    objfun(dat, T(alpha), mdl, T(pos[1]), T(pos[2]))
+end
+
+function objfun(wgt::AbstractArray{T,2},
+                dat::AbstractArray{T,2},
+                alpha::Real,
+                mdl,
+                pos::NTuple{2,Real}) where {T<:AbstractFloat}
+    objfun(wgt, dat, T(alpha), mdl, T(pos[1]), T(pos[2]))
+end
+
+function objfun(dat::AbstractArray{T,2},
+                mdl,
+                x0::Real,
+                y0::Real) where {T<:AbstractFloat}
+    objfun(dat, mdl, T(x0), T(y0))
+end
+
+function objfun(wgt::AbstractArray{T,2},
+                dat::AbstractArray{T,2},
+                mdl,
+                x0::Real,
+                y0::Real) where {T<:AbstractFloat}
+    objfun(wgt, dat, mdl, T(x0), T(y0))
+end
+
+function objfun(dat::AbstractArray{T,2},
+                alpha::Real,
+                mdl,
+                x0::Real,
+                y0::Real) where {T<:AbstractFloat}
+    objfun(dat, T(alpha), mdl, T(x0), T(y0))
+end
+
+function objfun(wgt::AbstractArray{T,2},
+                dat::AbstractArray{T,2},
+                alpha::Real,
+                mdl,
+                x0::Real,
+                y0::Real) where {T<:AbstractFloat}
+    objfun(wgt, dat, T(alpha), mdl, T(x0), T(y0))
+end
+
+function objfun(dat::AbstractArray{T,2},
+                alpha::T,
+                mdl,
+                x0::T,
+                y0::T) where {T<:AbstractFloat}
     X, Y = axes(dat)
     c = zero(Float64)
     @inbounds for y in Y
@@ -75,12 +169,12 @@ function objfun0(dat::AbstractArray{T,2},
     return c
 end
 
-function objfun0(wgt::AbstractArray{T,2},
-                 dat::AbstractArray{T,2},
-                 mdl,
-                 alpha::T,
-                 x0::T,
-                 y0::T) where {T<:AbstractFloat}
+function objfun(wgt::AbstractArray{T,2},
+                dat::AbstractArray{T,2},
+                mdl,
+                alpha::T,
+                x0::T,
+                y0::T) where {T<:AbstractFloat}
     X, Y = axes(dat)
     @assert axes(wgt) == (X, Y)
     c = zero(Float64)
@@ -98,17 +192,17 @@ function objfun0(wgt::AbstractArray{T,2},
     return c
 end
 
-function objfun1(dat::AbstractArray{T,2},
-                 mdl,
-                 x0::T,
-                 y0::T,
-                 nonnegative::Bool = false) where {T<:AbstractFloat}
+function objfun(dat::AbstractArray{T,2},
+                mdl,
+                x0::T,
+                y0::T,
+                nonnegative::Bool = false) where {T<:AbstractFloat}
     X, Y = axes(dat)
     a = zero(Float64)
     b = zero(Float64)
     @inbounds for y in Y
         v = T(y) - y0
-         @simd for x in X
+        @simd for x in X
             u = T(x) - x0
             m = mdl(u, v)
             d = dat[x,y]
@@ -124,19 +218,19 @@ function objfun1(dat::AbstractArray{T,2},
     end
 end
 
-function objfun1(wgt::AbstractArray{T,2},
-                 dat::AbstractArray{T,2},
-                 mdl,
-                 x0::T,
-                 y0::T,
-                 nonnegative::Bool = false) where {T<:AbstractFloat}
+function objfun(wgt::AbstractArray{T,2},
+                dat::AbstractArray{T,2},
+                mdl,
+                x0::T,
+                y0::T,
+                nonnegative::Bool = false) where {T<:AbstractFloat}
     X, Y = axes(dat)
     @assert axes(wgt) == (X, Y)
     a = zero(Float64)
     b = zero(Float64)
     @inbounds for y in Y
         v = T(y) - y0
-         @simd for x in X
+        @simd for x in X
             u = T(x) - x0
             m = mdl(u, v)
             w = wgt[x,y]
