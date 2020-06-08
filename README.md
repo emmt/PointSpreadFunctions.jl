@@ -17,5 +17,5 @@ Install with `Pkg`, as an unregistered Julia package (press the `]` key to
 enter the `Pkg` REPL mode):
 
 ```julia
-pkg> add https://github.com/emmt/PointSpreadFunctions.jl
+… pkg> add https://github.com/emmt/PointSpreadFunctions.jl
 ```
