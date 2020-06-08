@@ -192,10 +192,14 @@ end
 
 yield the `n`-th zero of *Point Spread Function* (PSF) `P`.  If `n` is a
 vector of integers, a vector with the corresponding zeros is returned.
-Optional argument `T` can be used to specify the floating-point type of the
-result.  The keywords of `OptimPack.Brent.fzero` can be specified.
+For example:
 
-See also: [`OptimPack.Brent.fzero`](@ref]
+    findzeros(P, 1:3)
+
+yields the first 3 zeros of `P`.
+
+Optional argument `T` can be used to specify the floating-point type of the
+result.  The keywords of `OptimPack.fzero` can be specified.
 
 """
 findzeros(P::AiryPSF, args...; kwds...) =
@@ -205,7 +209,7 @@ function findzeros(::Type{T},
                    P::AiryPSF,
                    n::AbstractVector{I};
                    kwds...) where {T<:AbstractFloat,I<:Integer}
-    result = Array{T}(length(n))
+    result = Array{T}(undef, length(n))
     for i in eachindex(result, n)
         result[i] = findzeros(T, P, n[i])
     end
