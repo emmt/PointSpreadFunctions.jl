@@ -8,7 +8,10 @@ module Fitting
 
 import OptimPack.Powell.Newuoa
 using ..PointSpreadFunctions
-using ..PointSpreadFunctions: AbstractPSF
+using ..PointSpreadFunctions:
+    AbstractPSF,
+    throw_bad_argument,
+    check_parameters
 import ..PointSpreadFunctions: fit
 
 # An N-dimensional Region Of Interest (ROI).
@@ -51,12 +54,14 @@ function fit(psf::PSF,
              dat::AbstractArray{T,2};
              rho::Tuple{Real,Real} = (0.1, 1e-5),
              nonnegative::Bool = false,
+             maxeval::Integer = 50*(N + 2),
              kwds...) where {T<:AbstractFloat,
                              N,PSF<:AbstractPSF{N}}
     x = T[pos..., psf[:]...]
-    ans = Newuoa.minimize!(x -> objfun(dat, PSF(x[3:N+2]...),
-                                       x[1], x[2], nonnegative),
-                           x, rho...; kwds...)
+    ans = Newuoa.minimize!(x -> (check_parameters(PSF, x[3:N+2]...) ?
+                                 objfun(dat, PSF(x[3:N+2]...),
+                                        x[1], x[2], nonnegative) : 0.0),
+                           x, rho...; maxeval=Int(maxeval), kwds...)
     return PSF(x[3:N+2]...), (x[1], x[2])
 end
 
@@ -66,13 +71,15 @@ function fit(psf::PSF,
              dat::AbstractArray{T,2};
              rho::Tuple{Real,Real} = (0.1, 1e-5),
              nonnegative::Bool = false,
+             maxeval::Integer = 50*(N + 2),
              kwds...) where {T<:AbstractFloat,
                              N,PSF<:AbstractPSF{N}}
     @assert axes(wgt) == axes(dat)
     x = T[pos..., psf[:]...]
-    ans = Newuoa.minimize!(x -> objfun(wgt, dat, PSF(x[3:N+2]...),
-                                       x[1], x[2], nonnegative),
-                           x, rho...; kwds...)
+    ans = Newuoa.minimize!(x -> (check_parameters(PSF, x[3:N+2]...) ?
+                                 objfun(wgt, dat, PSF(x[3:N+2]...),
+                                        x[1], x[2], nonnegative) : 0.0),
+                           x, rho...; maxeval=Int(maxeval), kwds...)
     return PSF(x[3:N+2]...), (x[1], x[2])
 end
 
