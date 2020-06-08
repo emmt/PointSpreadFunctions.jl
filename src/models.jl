@@ -15,14 +15,14 @@ const AIRY_FIFTH_ZERO  = 5.24
 """
 
 Instances of sub-types of `AbstractPSF{N}` are used to store the parameters
-of various Point Spread Functions (PSF) models, `N` is the number of
+of various *Point Spread Functions* (PSF) models, `N` is the number of
 parameters.  Let `P` be such an instance, then:
 
     P([T,] r)
     P([T,] x, y)
 
-yield an approximation of the PSF at a distance `r` or at a position `(x,y)`
-relative to the position of the point source.
+yield an approximation of the PSF at a distance `r` or at a position
+`(x,y)` relative to the position of the point source.
 
 Use index notation to retrieve the parameters as an `N`-tuple or a specific
 parameters:
@@ -30,15 +30,16 @@ parameters:
     P[:]  # yields all parameters
     P[i]  # yields i-th parameter
 
-The PSF is normalized such that its peak value (usually at the center) is equal
-to one.  The rationale is that normalization by the peak value does not depend
-on the dimensionality while the integral of the PSF does depend on the
-dimensionality.
+The PSF is normalized such that its peak value (usually at the center) is
+equal to one.  The rationale is that normalization by the peak value does
+not depend on the dimensionality while the integral of the PSF does depend
+on the dimensionality.
 
 See also [`AiryPSF`](@ref), [`CauchyPSF`](@ref), [`GaussianPSF`](@ref),
 [`MoffatPSF`](@ref).
 
-"""
+""" AbstractPSF
+
 abstract type AbstractPSF{N} end
 
 @inline getindex(P::AbstractPSF, ::Colon) = parameters(P)
@@ -58,13 +59,14 @@ function getfwhm end
 """
     P = AiryPSF(lim [, eps=0])
 
-defines the point spread function `P` of a circular pupil (AiryPSF PSF).
+defines the *Point Spread Function* (PSF) `P` of a circular pupil.
 Argument `lim` is the distance in the focal plane corresponding to the
 diffraction limit.  Assuming the distance is given in angular units
-(radians), `lim = λ/D` with `λ` the wavelength and `D` the pupil diameter.
-Optional argument `eps` is the ratio of the size of the central obscuration
-to that of the pupil (necessarily `0 ≤ eps < 1`).  If not specified, `eps =
-0` is assumed (unobstructed pupil).  Then:
+(radians), `lim = λ/D` with `λ` the wavelength and `D` the pupil diameter
+(both expressed in the same units).  Optional argument `eps` is the ratio
+of the size of the central obscuration to that of the pupil (necessarily `0
+≤ eps < 1`).  If not specified, `eps = 0` is assumed (unobstructed pupil).
+Then:
 
     P([T,] r)
     P([T,] x, y)
@@ -76,7 +78,8 @@ argument `T` is the floating-point type of the result.  Arguments `lim`, `r`,
 
 See also [`CauchyPSF`](@ref), [`GaussianPSF`](@ref), [`MoffatPSF`](@ref).
 
-"""
+""" AiryPSF
+
 struct AiryPSF <: AbstractPSF{2}
     _prm::NTuple{2,Float64}
     _a::Float64
@@ -188,10 +191,10 @@ end
 """
     findzeros([T=Float64,] P, n; kwds...)
 
-yield the `n`-th zero of PSF `P`.  If `n` is a vector of integers, a vector
-with the corresponding zeros is returned.  Optional argument `T` can be
-used to specify the floating-point type of the result.  The keywords of
-`OptimPack.Brent.fzero` can be specified.
+yield the `n`-th zero of *Point Spread Function* (PSF) `P`.  If `n` is a
+vector of integers, a vector with the corresponding zeros is returned.
+Optional argument `T` can be used to specify the floating-point type of the
+result.  The keywords of `OptimPack.Brent.fzero` can be specified.
 
 See also: [`OptimPack.Brent.fzero`](@ref]
 
@@ -228,16 +231,17 @@ end
     P([T,] r)
     P([T,] x, y)
 
-defines a Cauchy PSF `P` (or Lorentzian) of full width at half maximum
-`fwhm` which can be used to compute the PSF at distance `r` or position
-`(x,y)` relative to the position of the source and normalized so that the
-peak value of the PSF is one.  Optional argument `T` is the floating-point
-type of the result.  Arguments `fwhm`, `r`, `x` and `y` are in the same
-units.
+defines a Cauchy *Point Spread Function* (PSF) `P` (or Lorentzian) of full
+width at half maximum `fwhm` which can be used to compute the PSF at
+distance `r` or position `(x,y)` relative to the position of the source and
+normalized so that the peak value of the PSF is one.  Optional argument `T`
+is the floating-point type of the result.  Arguments `fwhm`, `r`, `x` and
+`y` are in the same units.
 
 See also [`AiryPSF`](@ref), [`GaussianPSF`](@ref), [`MoffatPSF`](@ref).
 
-"""
+""" CauchyPSF
+
 struct CauchyPSF <: AbstractPSF{1}
     fwhm::Float64
     _q::Float64
@@ -300,15 +304,17 @@ end
     P([T,] r)
     P([T,] x, y)
 
-defines a Gaussian PSF `P` of full width at half maximum `fwhm` which can be
-used to compute the PSF at distance `r` or position `(x,y)` relative to the
-position of the source and normalized so that the peak value of the PSF is one.
-Optional argument `T` is the floating-point type of the result.  Arguments
-`fwhm`, `r`, `x` and `y` are in the same units.
+defines a Gaussian *Point Spread Function* (PSF) `P` of full width at half
+maximum `fwhm` which can be used to compute the PSF at distance `r` or
+position `(x,y)` relative to the position of the source and normalized so
+that the peak value of the PSF is one.  Optional argument `T` is the
+floating-point type of the result.  Arguments `fwhm`, `r`, `x` and `y` are
+in the same units.
 
 See also [`AiryPSF`](@ref), [`CauchyPSF`](@ref), [`MoffatPSF`](@ref).
 
-"""
+""" GaussianPSF
+
 struct GaussianPSF <: AbstractPSF{1}
     fwhm::Float64
     _q::Float64
@@ -380,14 +386,16 @@ end
     P([T,] x, y)
 
 defines a Moffat PSF `P` of full width at half maximum `fwhm` and exponent
-`beta` which can be used to compute the PSF at distance `r` or position `(x,y)`
-relative to the position of the source and normalized so that the peak value of
-the PSF is one.  Optional argument `T` is the floating-point type of the
-result.  Arguments `fwhm`, `r`, `x` and `y` are in the same units.
+`beta` which can be used to compute the PSF at distance `r` or position
+`(x,y)` relative to the position of the source and normalized so that the
+peak value of the PSF is one.  Optional argument `T` is the floating-point
+type of the result.  Arguments `fwhm`, `r`, `x` and `y` are in the same
+units.
 
 See also [`AiryPSF`](@ref), [`CauchyPSF`](@ref), [`GaussianPSF`](@ref).
 
-"""
+""" MoffatPSF
+
 struct MoffatPSF <: AbstractPSF{2}
     _prm::NTuple{2,Float64}
     _p::Float64

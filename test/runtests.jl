@@ -3,8 +3,7 @@ module TestPointSpreadFunctions
 using PointSpreadFunctions
 using Test
 
-@testset "PointSpreadFunctions.jl" begin
-    # Write your own tests here.
+@testset "PSF models and fitting" begin
     x = 1:20
     y = 1:27
     x0 = 7.2
