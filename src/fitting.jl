@@ -13,7 +13,11 @@ using ..PointSpreadFunctions:
     throw_bad_argument,
     to_float,
     to_int
-import ..PointSpreadFunctions: fit
+import ..PointSpreadFunctions:
+    fit,
+    immutable,
+    isvalid,
+    parameters
 
 # An N-dimensional Region Of Interest (ROI).
 const ROI{N} = NTuple{N,Union{Colon,AbstractUnitRange{<:Integer}}}
@@ -21,6 +25,36 @@ const ROI{N} = NTuple{N,Union{Colon,AbstractUnitRange{<:Integer}}}
 # Union of possible model functions (may be needed in the future to avoid
 # ambiguities).
 const Model = Any # Union{AbstractPSF,Function}
+
+"""
+    ImmutablePSF(psf)
+
+yields a *Point Spread Function* (PSF) model based on `psf` but whose
+parameters are assumed constant.  This is useful to localize a PSF without
+fitting its parameters.
+
+"""
+struct ImmutablePSF{P<:AbstractPSF} <: AbstractPSF{0}
+    psf::P
+end
+
+# Just call the PSF model function when used as a function.
+(P::ImmutablePSF)(args...) = P.psf(args...)
+
+isvalid(P::ImmutablePSF) = isvalid(P.psf)
+parameters(P::ImmutablePSF) = ()
+
+ImmutablePSF(x::ImmutablePSF) = x
+
+"""
+    immutable(psf)
+
+yields a parameter-less model of *Point Spread Function* (PSF) based on
+`psf`.  This is useful to avoid fitting the parameters of a parametric
+model.
+
+"""
+immutable(x::AbstractPSF) = ImmutablePSF(x)
 
 """
     fit(psf, pos, [wgt,] dat[, roi]; nonnegative=false) -> psf′, pos′
@@ -53,37 +87,47 @@ of extracting a sub-array.  Specifying a ROI alos works for weighted data.
 Non-rectangular ROIs can be emulated by having weights equal to zero where
 data should be ignored.
 
+To simply localize the PSF without fitting its parameters, wrap the PSF
+model with the `immutable` method:
+
+    fit(immutable(psf), pos, [wgt,] dat[, roi]; nonnegative=false)
+
+!!! note
+    The `fit` and `immutable` methods are not exported (yet).  They must be
+    prefixed or explicitely exported.  For example:
+
+        using PointSpreadFunctions
+        using PointSpreadFunctions: fit, immutable
+
 """
-function fit(psf::PSF,
+function fit(psf::AbstractPSF{L},
              pos::NTuple{2,Real},
              dat::AbstractArray{T,2};
              rho::Tuple{Real,Real} = (0.1, 1e-5),
              nonnegative::Bool = false,
-             maxeval::Integer = 50*(N + 2),
-             kwds...) where {T<:AbstractFloat,
-                             N,PSF<:AbstractPSF{N}}
+             maxeval::Integer = 50*(L + 2),
+             kwds...) where {T<:AbstractFloat,L}
     # Newuoa uses double precision floating-point.
     x = Cdouble[pos..., psf[:]...]
-    ans = Newuoa.minimize!(x -> objfun(dat, PSF, x, nonnegative),
+    ans = Newuoa.minimize!(x -> objfun(dat, psf, x, nonnegative),
                            x, rho...; maxeval=Int(maxeval), kwds...)
-    return PSF(x[3:N+2]...), (x[1], x[2])
+    return _model(psf, x), (x[1], x[2])
 end
 
-function fit(psf::PSF,
+function fit(psf::AbstractPSF{L},
              pos::NTuple{2,Real},
              wgt::AbstractArray{T,2},
              dat::AbstractArray{T,2};
              rho::Tuple{Real,Real} = (0.1, 1e-5),
              nonnegative::Bool = false,
-             maxeval::Integer = 50*(N + 2),
-             kwds...) where {T<:AbstractFloat,
-                             N,PSF<:AbstractPSF{N}}
+             maxeval::Integer = 50*(L + 2),
+             kwds...) where {T<:AbstractFloat,L}
     @assert axes(wgt) == axes(dat)
     # Newuoa uses double precision floating-point.
     x = Cdouble[pos..., psf[:]...]
-    ans = Newuoa.minimize!(x -> objfun(wgt, dat, PSF, x, nonnegative),
+    ans = Newuoa.minimize!(x -> objfun(wgt, dat, psf, x, nonnegative),
                            x, rho...; maxeval=Int(maxeval), kwds...)
-    return PSF(x[3:N+2]...), (x[1], x[2])
+    return _model(psf, x), (x[1], x[2])
 end
 
 function fit(psf::AbstractPSF,
@@ -371,12 +415,11 @@ end
 # Objective functions designed for NEWUOA.
 
 function objfun(dat::AbstractArray{T,2},
-                ::Type{PSF},
+                psf::AbstractPSF{L},
                 prm::Vector{Cdouble},
-                nonnegative::Bool) where {T<:AbstractFloat,
-                                          N,PSF<:AbstractPSF{N}}
-    @assert length(prm) == N+2
-    mdl = _model(PSF, prm)
+                nonnegative::Bool) where {T<:AbstractFloat,L}
+    @assert length(prm) == L+2
+    mdl = _model(psf, prm)
     isvalid(mdl) ?
         Cdouble(objfun(dat, mdl, prm[1], prm[2], nonnegative)) :
         zero(Cdouble)
@@ -385,21 +428,24 @@ end
 
 function objfun(wgt::AbstractArray{T,2},
                 dat::AbstractArray{T,2},
-                ::Type{PSF},
+                psf::AbstractPSF{L},
                 prm::Vector{Cdouble},
-                nonnegative::Bool) where {T<:AbstractFloat,
-                                          N,PSF<:AbstractPSF{N}}
-    @assert length(prm) == N+2
-    mdl = _model(PSF, prm)
+                nonnegative::Bool) where {T<:AbstractFloat,L}
+    @assert length(prm) == L+2
+    mdl = _model(psf, prm)
     isvalid(mdl) ?
         Cdouble(objfun(wgt, dat, mdl, prm[1], prm[2], nonnegative)) :
         zero(Cdouble)
 end
 
-@inline _model(::Type{PSF}, prm::Vector{Cdouble}) where {PSF<:AbstractPSF{1}} =
-    PSF(prm[3])
+@inline _model(psf::ImmutablePSF, prm::Vector{Cdouble}) = psf.psf
 
-@inline _model(::Type{PSF}, prm::Vector{Cdouble}) where {PSF<:AbstractPSF{2}} =
-    PSF(prm[3], prm[4])
+@inline _model(psf::AbstractPSF{0}, prm::Vector{Cdouble}) = psf
+
+@inline _model(psf::T, prm::Vector{Cdouble}) where {T<:AbstractPSF{1}} =
+    T(prm[3])
+
+@inline _model(psf::T, prm::Vector{Cdouble}) where {T<:AbstractPSF{2}} =
+    T(prm[3], prm[4])
 
 end # module

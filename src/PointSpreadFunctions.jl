@@ -23,6 +23,7 @@ using OptimPack
 using SpecialFunctions
 
 function fit end
+function immutable end
 
 include("models.jl")
 include("fitting.jl")

@@ -12,6 +12,7 @@ using PointSpreadFunctions:
 import PointSpreadFunctions:
     check_structure,
     getfwhm,
+    immutable,
     isvalid,
     parameters
 using PointSpreadFunctions.Fitting:
@@ -184,6 +185,7 @@ _check_c(P::MyPSF) = (c = _get_c(P); isfinite(c) && 0 < c < 1)
         @test objfun(     dat, false) ≈ objfun(     dat, true)
         @test objfun(wgt, dat, false) ≈ objfun(wgt, dat, true)
 
+        # Fit all PSF parameters.
         for (psf1, pos1) in (
             PointSpreadFunctions.fit(initialpsf, (xinit,yinit), dat;
                                      nonnegative=true),
@@ -199,6 +201,22 @@ _check_c(P::MyPSF) = (c = _get_c(P); isfinite(c) && 0 < c < 1)
             for i in 1:length(psf[:])
                 @test psf1[i] ≈ psf[i] rtol=0.1  atol=0.0
             end
+        end
+
+        # Fit only the PSF position.
+        for (psf1, pos1) in (
+            PointSpreadFunctions.fit(immutable(psf), (xinit,yinit), dat;
+                                     nonnegative=true),
+            PointSpreadFunctions.fit(immutable(psf), (xinit,yinit), wgt, dat;
+                                     nonnegative=true),
+            PointSpreadFunctions.fit(immutable(psf), (xinit,yinit), dat, roi;
+                                     nonnegative=true),
+            PointSpreadFunctions.fit(immutable(psf), (xinit,yinit), wgt, dat, roi;
+                                     nonnegative=true),
+        )
+            @test pos1[1] ≈ x0     rtol=0.05 atol=0.0
+            @test pos1[2] ≈ y0     rtol=0.05 atol=0.0
+            @test psf1 === psf
         end
     end
 end
