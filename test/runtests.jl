@@ -22,8 +22,14 @@ struct MyPSF <: AbstractPSF{3}
         new(map(x -> to_float(Float64, x), (a,b,c)))
 end
 
+struct MyPSF2 <: AbstractPSF{0}; end
+
 parameters(P::MyPSF) = P.prm
+parameters(P::MyPSF2) = ()
 getfwhm(P::MyPSF) = P[1]
+getfwhm(P::MyPSF2) = 1.0
+# Purposely not extend isvalid and check_structure for MyPSF2 to check
+# default implementations.
 isvalid(P::MyPSF) = (_check_fwhm(P) && _check_b(P) && _check_c(P))
 function check_structure(P::MyPSF)
     _check_fwhm(P) || throw_bad_argument("invalid FWHM (",getfwhm(P),")")
@@ -52,25 +58,42 @@ _check_c(P::MyPSF) = (c = _get_c(P); isfinite(c) && 0 < c < 1)
     @test finite_and_nonnegative(0) == true
     @test finite_and_nonnegative(π) == true
 
+    @test isvalid(MyPSF2()) == true
+    @test check_structure(MyPSF2()) == true
+
     @test_throws ArgumentError throw_bad_argument("oops!")
     @test_throws ArgumentError throw_bad_argument("oops! (", π, ")")
 
-    x = 1:20
-    y = 1:27
-    x0 = 7.2
-    y0 = 9.3
+    x = 1:15
+    y = 1:17
+    x0 = 6.2
+    y0 = 7.3
+    α = 3.1
+    σ = 0.03
+    xinit = 6
+    yinit = 7
     let psf = GaussianPSF(5.4),
         mdl = psf((x .- x0), (y .- y0)'),
-        dat = 3.1*mdl + 0.1*randn(size(mdl)),
+        dat = α*mdl + σ*randn(size(mdl)),
         wgt = ones(eltype(dat), size(dat))
 
         @test getfwhm(psf) === psf[1]
         @test psf[:] === (getfwhm(psf),)
+
+        @test objfun(     dat, psf, (0, 0)) == objfun(     dat, psf, (0.0, 0.0))
+        @test objfun(wgt, dat, psf, (0, 0)) == objfun(wgt, dat, psf, (0.0, 0.0))
+
+        @test objfun(     dat, 1, psf, (0, 0)) == objfun(     dat, 1.0, psf, (0.0, 0.0))
+        @test objfun(wgt, dat, 1, psf, (0, 0)) == objfun(wgt, dat, 1.0, psf, (0.0, 0.0))
+
+        @test objfun(     dat, 0, psf, (0, 0)) ≈ objfun(     dat)
+        @test objfun(wgt, dat, 0, psf, (0, 0)) ≈ objfun(wgt, dat)
+
         for (psf1, pos1) in (
-            PointSpreadFunctions.fit(GaussianPSF(3), (6,11), dat;
+            PointSpreadFunctions.fit(GaussianPSF(3), (xinit,yinit), dat;
                                      nonnegative=true,
                                      maxeval=200),
-            PointSpreadFunctions.fit(GaussianPSF(3), (6,11), wgt, dat;
+            PointSpreadFunctions.fit(GaussianPSF(3), (xinit,yinit), wgt, dat;
                                      nonnegative=true,
                                      maxeval=200),
         )
@@ -113,6 +136,25 @@ _check_c(P::MyPSF) = (c = _get_c(P); isfinite(c) && 0 < c < 1)
         @test psf(0) == 1
         @test psf(0, 0) == 1
 
+        # Check FWHM.
+        let fwhm = getfwhm(psf)
+            @test psf(fwhm/2) ≈ 0.5
+            @test psf(fwhm/2, 0) ≈ 0.5
+            @test psf(0, fwhm/2) ≈ 0.5
+        end
+
+        # Check show extension.
+        io = IOBuffer()
+        show(io, psf)
+        str = String(take!(io))
+        tmp = repr(typeof(psf))
+        # Note: `findlast(char,str)` is not available until Julia 1.3 and
+        # is not in `Compat` so we have to do it ourselves.
+        i = findlast(==('.'), tmp)
+        pfx = (i === nothing ? tmp : tmp[i+1:end])
+        @test startswith(str, pfx*"(")
+        @test endswith(str, ")")
+
         for (x,y) in ((1.23, -0.12), (-0.7, sqrt(2)))
             @test psf(x, y) ≈ psf(hypot(x,y))
             for T in (Float32, Float64)
@@ -125,17 +167,27 @@ _check_c(P::MyPSF) = (c = _get_c(P); isfinite(c) && 0 < c < 1)
 
     let psf = AiryPSF(5.4, 0.33),
         mdl = psf((x .- x0), (y .- y0)'),
-        dat = 3.1*mdl + 0.1*randn(size(mdl)),
+        dat = α*mdl + σ*randn(size(mdl)),
         wgt = ones(eltype(dat), size(dat))
 
+        @test objfun(     dat, psf, (0, 0)) == objfun(     dat, psf, (0.0, 0.0))
+        @test objfun(wgt, dat, psf, (0, 0)) == objfun(wgt, dat, psf, (0.0, 0.0))
+
+        @test objfun(     dat, 1, psf, (0, 0)) == objfun(     dat, 1.0, psf, (0.0, 0.0))
+        @test objfun(wgt, dat, 1, psf, (0, 0)) == objfun(wgt, dat, 1.0, psf, (0.0, 0.0))
+
+        @test objfun(     dat, 0, psf, (0, 0)) ≈ objfun(     dat)
+        @test objfun(wgt, dat, 0, psf, (0, 0)) ≈ objfun(wgt, dat)
+
         for (psf1, pos1) in (
-            PointSpreadFunctions.fit(AiryPSF(5, 0.3), (7,9), dat;
+            PointSpreadFunctions.fit(AiryPSF(5, 0.3), (xinit,yinit), dat;
                                      nonnegative=true, rho=(0.03,1e-8),
                                      maxeval=200),
-            PointSpreadFunctions.fit(AiryPSF(5, 0.3), (7,9), wgt, dat;
+            PointSpreadFunctions.fit(AiryPSF(5, 0.3), (xinit,yinit), wgt, dat;
                                      nonnegative=true, rho=(0.03,1e-8),
                                      maxeval=200),
         )
+
             @test psf1[1] ≈ psf[1] rtol=0.1  atol=0.0
             @test psf1[2] ≈ psf[2] rtol=0.1  atol=0.0
             @test pos1[1] ≈ x0     rtol=0.05 atol=0.0
@@ -145,15 +197,24 @@ _check_c(P::MyPSF) = (c = _get_c(P); isfinite(c) && 0 < c < 1)
 
     let psf = CauchyPSF(5.4),
         mdl = psf((x .- x0), (y .- y0)'),
-        dat = 3.1*mdl + 0.1*randn(size(mdl)),
+        dat = α*mdl + σ*randn(size(mdl)),
         wgt = ones(eltype(dat), size(dat))
 
+        @test objfun(     dat, psf, (0, 0)) == objfun(     dat, psf, (0.0, 0.0))
+        @test objfun(wgt, dat, psf, (0, 0)) == objfun(wgt, dat, psf, (0.0, 0.0))
+
+        @test objfun(     dat, 1, psf, (0, 0)) == objfun(     dat, 1.0, psf, (0.0, 0.0))
+        @test objfun(wgt, dat, 1, psf, (0, 0)) == objfun(wgt, dat, 1.0, psf, (0.0, 0.0))
+
+        @test objfun(     dat, 0, psf, (0, 0)) ≈ objfun(     dat)
+        @test objfun(wgt, dat, 0, psf, (0, 0)) ≈ objfun(wgt, dat)
+
         for (psf1, pos1) in (
-            PointSpreadFunctions.fit(CauchyPSF(4), (6,11), dat;
+            PointSpreadFunctions.fit(CauchyPSF(4), (xinit,yinit), dat;
                                      nonnegative=true,
                                      rho=(0.03,1e-6),
                                      maxeval=200),
-            PointSpreadFunctions.fit(CauchyPSF(4), (6,11), wgt, dat;
+            PointSpreadFunctions.fit(CauchyPSF(4), (xinit,yinit), wgt, dat;
                                      nonnegative=true,
                                      rho=(0.03,1e-6),
                                      maxeval=200),
