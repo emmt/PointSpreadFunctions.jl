@@ -7,7 +7,8 @@ using PointSpreadFunctions:
     finite_and_nonnegative,
     finite_and_positive,
     throw_bad_argument,
-    to_float
+    to_float,
+    to_int
 import PointSpreadFunctions:
     check_structure,
     getfwhm,
@@ -45,6 +46,13 @@ _check_b(P::MyPSF) = finite_and_positive(_get_b(P))
 _check_c(P::MyPSF) = (c = _get_c(P); isfinite(c) && 0 < c < 1)
 
 @testset "PSF models and fitting" begin
+
+    for T in (Int8, Int16, Int32, Int64)
+        @test to_int(T(1)) === one(Int)
+    end
+    for T in (Float32, Float64)
+        @test to_float(T, 1) === one(T)
+    end
 
     @test finite_and_positive(NaN) == false
     @test finite_and_positive(+Inf) == false

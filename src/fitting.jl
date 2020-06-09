@@ -11,7 +11,8 @@ using ..PointSpreadFunctions
 using ..PointSpreadFunctions:
     AbstractPSF,
     throw_bad_argument,
-    to_float
+    to_float,
+    to_int
 import ..PointSpreadFunctions: fit
 
 # An N-dimensional Region Of Interest (ROI).
@@ -119,10 +120,6 @@ function offsets(inds::NTuple{N,AbstractUnitRange{<:Integer}},
         to_int(first(J)) - 1
     map(offset, inds, roi)
 end
-
-to_int(x::Int) = x
-to_int(x::Integer) = Int(x)
-
 
 """
     objfun([wgt,] dat, α, mdl, x0, y0)

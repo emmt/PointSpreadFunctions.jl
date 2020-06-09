@@ -498,3 +498,12 @@ lazily yields `x` converted to floating-point type `T`.
 """
 to_float(::Type{T}, x::T   ) where {T<:AbstractFloat} = x
 to_float(::Type{T}, x::Real) where {T<:AbstractFloat} = T(x)
+
+"""
+    to_int(x)
+
+lazily yields `x` converted to integer type `int`.
+
+"""
+to_int(x::Int) = x
+to_int(x::Integer) = Int(x)
