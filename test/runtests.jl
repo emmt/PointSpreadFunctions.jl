@@ -72,7 +72,9 @@ _check_c(P::MyPSF) = (c = _get_c(P); isfinite(c) && 0 < c < 1)
     σ = 0.03
     xinit = 6
     yinit = 7
+    roi = (2:last(x)-1, :)
     let psf = GaussianPSF(5.4),
+        badpsf = GaussianPSF(-1.0),
         mdl = psf((x .- x0), (y .- y0)'),
         dat = α*mdl + σ*randn(size(mdl)),
         wgt = ones(eltype(dat), size(dat))
@@ -83,17 +85,31 @@ _check_c(P::MyPSF) = (c = _get_c(P); isfinite(c) && 0 < c < 1)
         @test objfun(     dat, psf, (0, 0)) == objfun(     dat, psf, (0.0, 0.0))
         @test objfun(wgt, dat, psf, (0, 0)) == objfun(wgt, dat, psf, (0.0, 0.0))
 
+        # Check that the nonnegative constraints works.
+        @test objfun(     -dat, psf, (0, 0), true) == 0
+        @test objfun(wgt, -dat, psf, (0, 0), true) == 0
+
         @test objfun(     dat, 1, psf, (0, 0)) == objfun(     dat, 1.0, psf, (0.0, 0.0))
         @test objfun(wgt, dat, 1, psf, (0, 0)) == objfun(wgt, dat, 1.0, psf, (0.0, 0.0))
 
-        @test objfun(     dat, 0, psf, (0, 0)) ≈ objfun(     dat)
-        @test objfun(wgt, dat, 0, psf, (0, 0)) ≈ objfun(wgt, dat)
+        # Check the versions of the objective function that behave as if
+        # the model is zero everywhere.
+        @test objfun(     dat) ≈ objfun(     dat, 0, psf, (0, 0))
+        @test objfun(wgt, dat) ≈ objfun(wgt, dat, 0, psf, (0, 0))
+        @test objfun(     dat, false) ≈ objfun(     dat, true)
+        @test objfun(wgt, dat, false) ≈ objfun(wgt, dat, true)
 
         for (psf1, pos1) in (
             PointSpreadFunctions.fit(GaussianPSF(3), (xinit,yinit), dat;
                                      nonnegative=true,
                                      maxeval=200),
             PointSpreadFunctions.fit(GaussianPSF(3), (xinit,yinit), wgt, dat;
+                                     nonnegative=true,
+                                     maxeval=200),
+            PointSpreadFunctions.fit(GaussianPSF(3), (xinit,yinit), dat, roi;
+                                     nonnegative=true,
+                                     maxeval=200),
+            PointSpreadFunctions.fit(GaussianPSF(3), (xinit,yinit), wgt, dat, roi;
                                      nonnegative=true,
                                      maxeval=200),
         )
@@ -119,6 +135,14 @@ _check_c(P::MyPSF) = (c = _get_c(P); isfinite(c) && 0 < c < 1)
     @test isvalid(MoffatPSF(0.0,0.5)) == false
     @test isvalid(MoffatPSF(1.0,-0.2)) == false
     @test isvalid(MoffatPSF(1.0,0.4)) == true
+
+    let psf = GaussianPSF(5.4),
+        mdl = psf((x .- x0), (y .- y0)'),
+        dat = -α*mdl + σ*randn(size(mdl)),
+        wgt = ones(eltype(dat), size(dat))
+
+
+    end
 
     let psf = AiryPSF(1.0)
         @test psf[:] === (1.0, 0.0)
@@ -173,11 +197,19 @@ _check_c(P::MyPSF) = (c = _get_c(P); isfinite(c) && 0 < c < 1)
         @test objfun(     dat, psf, (0, 0)) == objfun(     dat, psf, (0.0, 0.0))
         @test objfun(wgt, dat, psf, (0, 0)) == objfun(wgt, dat, psf, (0.0, 0.0))
 
+        # Check that the nonnegative constraints works.
+        @test objfun(     -dat, psf, (0, 0), true) == 0
+        @test objfun(wgt, -dat, psf, (0, 0), true) == 0
+
         @test objfun(     dat, 1, psf, (0, 0)) == objfun(     dat, 1.0, psf, (0.0, 0.0))
         @test objfun(wgt, dat, 1, psf, (0, 0)) == objfun(wgt, dat, 1.0, psf, (0.0, 0.0))
 
-        @test objfun(     dat, 0, psf, (0, 0)) ≈ objfun(     dat)
-        @test objfun(wgt, dat, 0, psf, (0, 0)) ≈ objfun(wgt, dat)
+        # Check the versions of the objective function that behave as if
+        # the model is zero everywhere.
+        @test objfun(     dat) ≈ objfun(     dat, 0, psf, (0, 0))
+        @test objfun(wgt, dat) ≈ objfun(wgt, dat, 0, psf, (0, 0))
+        @test objfun(     dat, false) ≈ objfun(     dat, true)
+        @test objfun(wgt, dat, false) ≈ objfun(wgt, dat, true)
 
         for (psf1, pos1) in (
             PointSpreadFunctions.fit(AiryPSF(5, 0.3), (xinit,yinit), dat;
@@ -203,11 +235,19 @@ _check_c(P::MyPSF) = (c = _get_c(P); isfinite(c) && 0 < c < 1)
         @test objfun(     dat, psf, (0, 0)) == objfun(     dat, psf, (0.0, 0.0))
         @test objfun(wgt, dat, psf, (0, 0)) == objfun(wgt, dat, psf, (0.0, 0.0))
 
+        # Check that the nonnegative constraints works.
+        @test objfun(     -dat, psf, (0, 0), true) == 0
+        @test objfun(wgt, -dat, psf, (0, 0), true) == 0
+
         @test objfun(     dat, 1, psf, (0, 0)) == objfun(     dat, 1.0, psf, (0.0, 0.0))
         @test objfun(wgt, dat, 1, psf, (0, 0)) == objfun(wgt, dat, 1.0, psf, (0.0, 0.0))
 
-        @test objfun(     dat, 0, psf, (0, 0)) ≈ objfun(     dat)
-        @test objfun(wgt, dat, 0, psf, (0, 0)) ≈ objfun(wgt, dat)
+        # Check the versions of the objective function that behave as if
+        # the model is zero everywhere.
+        @test objfun(     dat) ≈ objfun(     dat, 0, psf, (0, 0))
+        @test objfun(wgt, dat) ≈ objfun(wgt, dat, 0, psf, (0, 0))
+        @test objfun(     dat, false) ≈ objfun(     dat, true)
+        @test objfun(wgt, dat, false) ≈ objfun(wgt, dat, true)
 
         for (psf1, pos1) in (
             PointSpreadFunctions.fit(CauchyPSF(4), (xinit,yinit), dat;
