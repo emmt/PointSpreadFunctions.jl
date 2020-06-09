@@ -17,6 +17,10 @@ import ..PointSpreadFunctions: fit
 # An N-dimensional Region Of Interest (ROI).
 const ROI{N} = NTuple{N,Union{Colon,AbstractUnitRange{<:Integer}}}
 
+# Union of possible model functions (may be needed in the future to avoid
+# ambiguities).
+const Model = Any # Union{AbstractPSF,Function}
+
 """
     fit(psf, pos, [wgt,] dat[, roi]; nonnegative=false) -> psf′, pos′
 
@@ -158,65 +162,7 @@ correct values and their values are not checked.
 
 """ objfun
 
-function objfun(dat::AbstractArray{T,2},
-                mdl,
-                pos::NTuple{2,Real}) where {T<:AbstractFloat}
-    objfun(dat, mdl, T(pos[1]), T(pos[2]))
-end
-
-function objfun(wgt::AbstractArray{T,2},
-                dat::AbstractArray{T,2},
-                mdl,
-                pos::NTuple{2,Real}) where {T<:AbstractFloat}
-    objfun(wgt, dat, mdl, T(pos[1]), T(pos[2]))
-end
-
-function objfun(dat::AbstractArray{T,2},
-                alpha::Real,
-                mdl,
-                pos::NTuple{2,Real}) where {T<:AbstractFloat}
-    objfun(dat, T(alpha), mdl, T(pos[1]), T(pos[2]))
-end
-
-function objfun(wgt::AbstractArray{T,2},
-                dat::AbstractArray{T,2},
-                alpha::Real,
-                mdl,
-                pos::NTuple{2,Real}) where {T<:AbstractFloat}
-    objfun(wgt, dat, T(alpha), mdl, T(pos[1]), T(pos[2]))
-end
-
-function objfun(dat::AbstractArray{T,2},
-                mdl,
-                x0::Real,
-                y0::Real) where {T<:AbstractFloat}
-    objfun(dat, mdl, T(x0), T(y0))
-end
-
-function objfun(wgt::AbstractArray{T,2},
-                dat::AbstractArray{T,2},
-                mdl,
-                x0::Real,
-                y0::Real) where {T<:AbstractFloat}
-    objfun(wgt, dat, mdl, T(x0), T(y0))
-end
-
-function objfun(dat::AbstractArray{T,2},
-                alpha::Real,
-                mdl,
-                x0::Real,
-                y0::Real) where {T<:AbstractFloat}
-    objfun(dat, T(alpha), mdl, T(x0), T(y0))
-end
-
-function objfun(wgt::AbstractArray{T,2},
-                dat::AbstractArray{T,2},
-                alpha::Real,
-                mdl,
-                x0::Real,
-                y0::Real) where {T<:AbstractFloat}
-    objfun(wgt, dat, T(alpha), mdl, T(x0), T(y0))
-end
+# Objective functions when alpha=0.
 
 function objfun(dat::AbstractArray{T},
                 trustvalues::Bool = false) where {T<:AbstractFloat}
@@ -249,7 +195,7 @@ function objfun(wgt::AbstractArray{T,N},
         wflags = true
         dflags = true
         @inbounds @simd for i in eachindex(wgt, dat)
-            wflags &= isfinite(wgt[i]) & wgt[i] ≥ zero(wgt[i])
+            wflags &= isfinite(wgt[i]) & (wgt[i] ≥ zero(wgt[i]))
             dflags &= isfinite(dat[i])
             c += to_float(Float64, wgt[i]*dat[i]^2)
         end
@@ -259,17 +205,51 @@ function objfun(wgt::AbstractArray{T,N},
     return c
 end
 
+# Objective functions when alpha is given.
+
+function objfun(dat::AbstractArray{T,2},
+                alpha::Real,
+                mdl::Model,
+                pos::NTuple{2,Real}) where {T<:AbstractFloat}
+    objfun(dat, alpha, mdl, pos[1], pos[2])
+end
+
+function objfun(wgt::AbstractArray{T,2},
+                dat::AbstractArray{T,2},
+                alpha::Real,
+                mdl::Model,
+                pos::NTuple{2,Real}) where {T<:AbstractFloat}
+    objfun(wgt, dat, alpha, mdl, pos[1], pos[2])
+end
+
+function objfun(dat::AbstractArray{T,2},
+                alpha::Real,
+                mdl::Model,
+                x0::Real,
+                y0::Real) where {T<:AbstractFloat}
+    objfun(dat, to_float(T, alpha), mdl, to_float(T, x0), to_float(T, y0))
+end
+
+function objfun(wgt::AbstractArray{T,2},
+                dat::AbstractArray{T,2},
+                alpha::Real,
+                mdl::Model,
+                x0::Real,
+                y0::Real) where {T<:AbstractFloat}
+    objfun(wgt, dat, to_float(T, alpha), mdl, to_float(T, x0), to_float(T, y0))
+end
+
 function objfun(dat::AbstractArray{T,2},
                 alpha::T,
-                mdl,
+                mdl::Model,
                 x0::T,
                 y0::T) where {T<:AbstractFloat}
     X, Y = axes(dat)
     c = zero(Float64)
     @inbounds for y in Y
-        v = T(y) - y0
+        v = to_float(T, y) - y0
         @simd for x in X
-            u = T(x) - x0
+            u = to_float(T, x) - x0
             m = mdl(u, v)
             d = dat[x,y]
             r = d - alpha*m
@@ -281,17 +261,17 @@ end
 
 function objfun(wgt::AbstractArray{T,2},
                 dat::AbstractArray{T,2},
-                mdl,
                 alpha::T,
+                mdl::Model,
                 x0::T,
                 y0::T) where {T<:AbstractFloat}
     X, Y = axes(dat)
     @assert axes(wgt) == (X, Y)
     c = zero(Float64)
     @inbounds for y in Y
-        v = T(y) - y0
+        v = to_float(T, y) - y0
         @simd for x in X
-            u = T(x) - x0
+            u = to_float(T, x) - x0
             m = mdl(u, v)
             w = wgt[x,y]
             d = dat[x,y]
@@ -302,8 +282,42 @@ function objfun(wgt::AbstractArray{T,2},
     return c
 end
 
+# Objective functions that set alpha automatically.
+
 function objfun(dat::AbstractArray{T,2},
-                mdl,
+                mdl::Model,
+                pos::NTuple{2,Real},
+                nonnegative::Bool = false) where {T<:AbstractFloat}
+    objfun(dat, mdl, pos[1], pos[2], nonnegative)
+end
+
+function objfun(wgt::AbstractArray{T,2},
+                dat::AbstractArray{T,2},
+                mdl::Model,
+                pos::NTuple{2,Real},
+                nonnegative::Bool = false) where {T<:AbstractFloat}
+    objfun(wgt, dat, mdl, pos[1], pos[2], nonnegative)
+end
+
+function objfun(dat::AbstractArray{T,2},
+                mdl::Model,
+                x0::Real,
+                y0::Real,
+                nonnegative::Bool = false) where {T<:AbstractFloat}
+    objfun(dat, mdl, to_float(T, x0), to_float(T, y0), nonnegative)
+end
+
+function objfun(wgt::AbstractArray{T,2},
+                dat::AbstractArray{T,2},
+                mdl::Model,
+                x0::Real,
+                y0::Real,
+                nonnegative::Bool = false) where {T<:AbstractFloat}
+    objfun(wgt, dat, mdl, to_float(T, x0), to_float(T, y0), nonnegative)
+end
+
+function objfun(dat::AbstractArray{T,2},
+                mdl::Model,
                 x0::T,
                 y0::T,
                 nonnegative::Bool = false) where {T<:AbstractFloat}
@@ -311,9 +325,9 @@ function objfun(dat::AbstractArray{T,2},
     a = zero(Float64)
     b = zero(Float64)
     @inbounds for y in Y
-        v = T(y) - y0
+        v = to_float(T, y) - y0
         @simd for x in X
-            u = T(x) - x0
+            u = to_float(T, x) - x0
             m = mdl(u, v)
             d = dat[x,y]
             a += m*m
@@ -330,7 +344,7 @@ end
 
 function objfun(wgt::AbstractArray{T,2},
                 dat::AbstractArray{T,2},
-                mdl,
+                mdl::Model,
                 x0::T,
                 y0::T,
                 nonnegative::Bool = false) where {T<:AbstractFloat}
@@ -339,9 +353,9 @@ function objfun(wgt::AbstractArray{T,2},
     a = zero(Float64)
     b = zero(Float64)
     @inbounds for y in Y
-        v = T(y) - y0
+        v = to_float(T, y) - y0
         @simd for x in X
-            u = T(x) - x0
+            u = to_float(T, x) - x0
             m = mdl(u, v)
             w = wgt[x,y]
             d = dat[x,y]
@@ -357,7 +371,8 @@ function objfun(wgt::AbstractArray{T,2},
     end
 end
 
-# These methods are designed for NEWUOA.
+# Objective functions designed for NEWUOA.
+
 function objfun(dat::AbstractArray{T,2},
                 ::Type{PSF},
                 prm::Vector{Cdouble},
