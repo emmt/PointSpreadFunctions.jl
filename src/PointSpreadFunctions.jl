@@ -7,6 +7,7 @@
 module PointSpreadFunctions
 
 export
+    AbstractPSF,
     AiryPSF,
     CauchyPSF,
     GaussianPSF,
