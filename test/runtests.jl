@@ -64,61 +64,6 @@ _check_c(P::MyPSF) = (c = _get_c(P); isfinite(c) && 0 < c < 1)
     @test_throws ArgumentError throw_bad_argument("oops!")
     @test_throws ArgumentError throw_bad_argument("oops! (", π, ")")
 
-    x = 1:15
-    y = 1:17
-    x0 = 6.2
-    y0 = 7.3
-    α = 3.1
-    σ = 0.03
-    xinit = 6
-    yinit = 7
-    roi = (2:last(x)-1, :)
-    let psf = GaussianPSF(5.4),
-        badpsf = GaussianPSF(-1.0),
-        mdl = psf((x .- x0), (y .- y0)'),
-        dat = α*mdl + σ*randn(size(mdl)),
-        wgt = ones(eltype(dat), size(dat))
-
-        @test getfwhm(psf) === psf[1]
-        @test psf[:] === (getfwhm(psf),)
-
-        @test objfun(     dat, psf, (0, 0)) == objfun(     dat, psf, (0.0, 0.0))
-        @test objfun(wgt, dat, psf, (0, 0)) == objfun(wgt, dat, psf, (0.0, 0.0))
-
-        # Check that the nonnegative constraints works.
-        @test objfun(     -dat, psf, (0, 0), true) == 0
-        @test objfun(wgt, -dat, psf, (0, 0), true) == 0
-
-        @test objfun(     dat, 1, psf, (0, 0)) == objfun(     dat, 1.0, psf, (0.0, 0.0))
-        @test objfun(wgt, dat, 1, psf, (0, 0)) == objfun(wgt, dat, 1.0, psf, (0.0, 0.0))
-
-        # Check the versions of the objective function that behave as if
-        # the model is zero everywhere.
-        @test objfun(     dat) ≈ objfun(     dat, 0, psf, (0, 0))
-        @test objfun(wgt, dat) ≈ objfun(wgt, dat, 0, psf, (0, 0))
-        @test objfun(     dat, false) ≈ objfun(     dat, true)
-        @test objfun(wgt, dat, false) ≈ objfun(wgt, dat, true)
-
-        for (psf1, pos1) in (
-            PointSpreadFunctions.fit(GaussianPSF(3), (xinit,yinit), dat;
-                                     nonnegative=true,
-                                     maxeval=200),
-            PointSpreadFunctions.fit(GaussianPSF(3), (xinit,yinit), wgt, dat;
-                                     nonnegative=true,
-                                     maxeval=200),
-            PointSpreadFunctions.fit(GaussianPSF(3), (xinit,yinit), dat, roi;
-                                     nonnegative=true,
-                                     maxeval=200),
-            PointSpreadFunctions.fit(GaussianPSF(3), (xinit,yinit), wgt, dat, roi;
-                                     nonnegative=true,
-                                     maxeval=200),
-        )
-            @test psf1[1] ≈ psf[1] rtol=0.1  atol=0.0
-            @test pos1[1] ≈ x0     rtol=0.05 atol=0.0
-            @test pos1[2] ≈ y0     rtol=0.05 atol=0.0
-        end
-    end
-
     @test_throws ArgumentError check_structure(MyPSF(-1.0,1,0.3))
     @test_throws ArgumentError check_structure(AiryPSF(-1.0))
     @test_throws ArgumentError check_structure(AiryPSF(1.0, 1.1))
@@ -136,23 +81,7 @@ _check_c(P::MyPSF) = (c = _get_c(P); isfinite(c) && 0 < c < 1)
     @test isvalid(MoffatPSF(1.0,-0.2)) == false
     @test isvalid(MoffatPSF(1.0,0.4)) == true
 
-    let psf = GaussianPSF(5.4),
-        mdl = psf((x .- x0), (y .- y0)'),
-        dat = -α*mdl + σ*randn(size(mdl)),
-        wgt = ones(eltype(dat), size(dat))
-
-
-    end
-
-    let psf = AiryPSF(1.0)
-        @test psf[:] === (1.0, 0.0)
-        @test getfwhm(psf) ≈ PointSpreadFunctions.AIRY_FWHM
-        @test findzeros(psf, 1:5) ≈ [PointSpreadFunctions.AIRY_FIRST_ZERO,
-                                     PointSpreadFunctions.AIRY_SECOND_ZERO,
-                                     PointSpreadFunctions.AIRY_THIRD_ZERO,
-                                     PointSpreadFunctions.AIRY_FOURTH_ZERO,
-                                     PointSpreadFunctions.AIRY_FIFTH_ZERO] atol=0.01
-    end
+    # Tests for any PSF models.
     for psf in (AiryPSF(1.1), AiryPSF(1.2, 0.3),
                 CauchyPSF(1.8), GaussianPSF(2.7),
                 MoffatPSF(1.4, 0.5))
@@ -189,58 +118,56 @@ _check_c(P::MyPSF) = (c = _get_c(P); isfinite(c) && 0 < c < 1)
         end
     end
 
-    let psf = AiryPSF(5.4, 0.33),
-        mdl = psf((x .- x0), (y .- y0)'),
-        dat = α*mdl + σ*randn(size(mdl)),
-        wgt = ones(eltype(dat), size(dat))
-
-        @test objfun(     dat, psf, (0, 0)) == objfun(     dat, psf, (0.0, 0.0))
-        @test objfun(wgt, dat, psf, (0, 0)) == objfun(wgt, dat, psf, (0.0, 0.0))
-
-        # Check that the nonnegative constraints works.
-        @test objfun(     -dat, psf, (0, 0), true) == 0
-        @test objfun(wgt, -dat, psf, (0, 0), true) == 0
-
-        @test objfun(     dat, 1, psf, (0, 0)) == objfun(     dat, 1.0, psf, (0.0, 0.0))
-        @test objfun(wgt, dat, 1, psf, (0, 0)) == objfun(wgt, dat, 1.0, psf, (0.0, 0.0))
-
-        # Check the versions of the objective function that behave as if
-        # the model is zero everywhere.
-        @test objfun(     dat) ≈ objfun(     dat, 0, psf, (0, 0))
-        @test objfun(wgt, dat) ≈ objfun(wgt, dat, 0, psf, (0, 0))
-        @test objfun(     dat, false) ≈ objfun(     dat, true)
-        @test objfun(wgt, dat, false) ≈ objfun(wgt, dat, true)
-
-        for (psf1, pos1) in (
-            PointSpreadFunctions.fit(AiryPSF(5, 0.3), (xinit,yinit), dat;
-                                     nonnegative=true, rho=(0.03,1e-8),
-                                     maxeval=200),
-            PointSpreadFunctions.fit(AiryPSF(5, 0.3), (xinit,yinit), wgt, dat;
-                                     nonnegative=true, rho=(0.03,1e-8),
-                                     maxeval=200),
-        )
-
-            @test psf1[1] ≈ psf[1] rtol=0.1  atol=0.0
-            @test psf1[2] ≈ psf[2] rtol=0.1  atol=0.0
-            @test pos1[1] ≈ x0     rtol=0.05 atol=0.0
-            @test pos1[2] ≈ y0     rtol=0.05 atol=0.0
-        end
+    # Specific tests for AiryPSF.
+    let psf = AiryPSF(1.0)
+        @test psf[:] === (1.0, 0.0)
+        @test getfwhm(psf) ≈ PointSpreadFunctions.AIRY_FWHM
+        @test findzeros(psf, 1:5) ≈ [PointSpreadFunctions.AIRY_FIRST_ZERO,
+                                     PointSpreadFunctions.AIRY_SECOND_ZERO,
+                                     PointSpreadFunctions.AIRY_THIRD_ZERO,
+                                     PointSpreadFunctions.AIRY_FOURTH_ZERO,
+                                     PointSpreadFunctions.AIRY_FIFTH_ZERO] atol=0.01
     end
 
-    let psf = CauchyPSF(5.4),
-        mdl = psf((x .- x0), (y .- y0)'),
-        dat = α*mdl + σ*randn(size(mdl)),
+    # Test fitting.
+    x = 1:15
+    y = 1:17
+    x0 = 6.2
+    y0 = 7.3
+    α = 3.1
+    σ = 0.03
+    xinit = 6
+    yinit = 7
+    roi = (2:last(x)-1, :)
+    for (psf, initialpsf) in (
+        (GaussianPSF(5.4), GaussianPSF(5)),
+        (CauchyPSF(5.4), CauchyPSF(4)),
+        (AiryPSF(5.4, 0.33), AiryPSF(5, 0.3)),
+        (MoffatPSF(5.2, 1.5), MoffatPSF(5, 1)),
+    )
+
+        mdl = psf((x .- x0), (y .- y0)')
+        dat = α*mdl + σ*randn(size(mdl))
         wgt = ones(eltype(dat), size(dat))
 
+        if psf isa Union{AiryPSF,GaussianPSF,CauchyPSF,MoffatPSF}
+            # Check that PSF has radial symmetry.
+            @test psf(hypot.((x .- x0), (y .- y0)')) ≈ mdl
+        end
+
+        # Check conversion of arguments in objective function with given
+        # alpha.
+        @test objfun(     dat, 1, psf, (0, 0)) == objfun(     dat, 1.0, psf, (0.0, 0.0))
+        @test objfun(wgt, dat, 1, psf, (0, 0)) == objfun(wgt, dat, 1.0, psf, (0.0, 0.0))
+
+        # Check conversion of arguments in objective function with
+        # automatic alpha.
         @test objfun(     dat, psf, (0, 0)) == objfun(     dat, psf, (0.0, 0.0))
         @test objfun(wgt, dat, psf, (0, 0)) == objfun(wgt, dat, psf, (0.0, 0.0))
 
         # Check that the nonnegative constraints works.
         @test objfun(     -dat, psf, (0, 0), true) == 0
         @test objfun(wgt, -dat, psf, (0, 0), true) == 0
-
-        @test objfun(     dat, 1, psf, (0, 0)) == objfun(     dat, 1.0, psf, (0.0, 0.0))
-        @test objfun(wgt, dat, 1, psf, (0, 0)) == objfun(wgt, dat, 1.0, psf, (0.0, 0.0))
 
         # Check the versions of the objective function that behave as if
         # the model is zero everywhere.
@@ -250,18 +177,20 @@ _check_c(P::MyPSF) = (c = _get_c(P); isfinite(c) && 0 < c < 1)
         @test objfun(wgt, dat, false) ≈ objfun(wgt, dat, true)
 
         for (psf1, pos1) in (
-            PointSpreadFunctions.fit(CauchyPSF(4), (xinit,yinit), dat;
-                                     nonnegative=true,
-                                     rho=(0.03,1e-6),
-                                     maxeval=200),
-            PointSpreadFunctions.fit(CauchyPSF(4), (xinit,yinit), wgt, dat;
-                                     nonnegative=true,
-                                     rho=(0.03,1e-6),
-                                     maxeval=200),
+            PointSpreadFunctions.fit(initialpsf, (xinit,yinit), dat;
+                                     nonnegative=true),
+            PointSpreadFunctions.fit(initialpsf, (xinit,yinit), wgt, dat;
+                                     nonnegative=true),
+            PointSpreadFunctions.fit(initialpsf, (xinit,yinit), dat, roi;
+                                     nonnegative=true),
+            PointSpreadFunctions.fit(initialpsf, (xinit,yinit), wgt, dat, roi;
+                                     nonnegative=true),
         )
-            @test psf1[1] ≈ psf[1] rtol=0.1  atol=0.0
             @test pos1[1] ≈ x0     rtol=0.05 atol=0.0
             @test pos1[2] ≈ y0     rtol=0.05 atol=0.0
+            for i in 1:length(psf[:])
+                @test psf1[i] ≈ psf[i] rtol=0.1  atol=0.0
+            end
         end
     end
 end
