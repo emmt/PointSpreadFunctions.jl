@@ -14,7 +14,7 @@ export
     getfwhm,
     findzeros
 
-import Base: getindex
+import Base: getindex, isvalid
 using Base: @propagate_inbounds
 
 using OptimPack

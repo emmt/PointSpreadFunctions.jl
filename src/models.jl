@@ -56,14 +56,25 @@ the result if this value must be used several times.
 """ getfwhm
 
 """
-    check_parameters(P::Type{<:AbstractPSF}, params...) -> bool
+    check_structure(psf)
 
-yields whether parameter(s) `params` are suitable for *Point Spread Function* (PSF)
-of type `P`.  parameters may be specified as a tuple or s separate arguments.
+throws an exception if the parameters of the point spread function `psf`
+are invalid.  Call [`isvalid(psf)`](@ref) to check the validity of the
+parameters without throwing exceptions.
 
 """
-check_parameters(::Type{P}, params::Tuple{Vararg{Real}}) where {P<:AbstractPSF} =
-    check_parameters(P, params...)
+check_structure(psf::AbstractPSF) =
+    isvalid(psf) || throw_bad_argument("PSF has invalid parameter(s)")
+
+"""
+    isvalid(psf) -> bool
+
+yields whether the parameters of the point spread function `psf` are
+correct.  The [`check_structure`](@ref) method is similar but throws for
+invalid parameters.
+
+"""
+isvalid(::AbstractPSF) = true
 
 """
     P = AiryPSF(lim [, eps=0])
@@ -93,29 +104,27 @@ struct AiryPSF <: AbstractPSF{2}
     _prm::NTuple{2,Float64}
     _a::Float64
     _c::Float64
-    function AiryPSF(lim::Real, eps::Real = 0.0)
-        _check_airy_lim(lim) ||
-            throw_bad_argument("bad diffraction limit value")
-        _check_airy_eps(eps)  ||
-            throw_bad_argument("out of range central obscuration ratio")
-        a = eps == 0 ? 2.0 : 2.0/((1.0 - eps)*(1.0 + eps))
-        return new((lim, eps), a, pi/lim)
-    end
+    AiryPSF(lim::Real, eps::Real = 0.0) =
+        new((lim, eps),
+            (eps == 0 ? 2.0 : 2.0/((1.0 - eps)*(1.0 + eps))),
+            pi/lim)
 end
 
-check_parameters(::Type{<:AiryPSF}, lim::Real) =
-    _check_airy_lim(lim)
-check_parameters(::Type{<:AiryPSF}, lim::Real, eps::Real) =
-    _check_airy_lim(lim) && _check_airy_eps(eps)
+@inline isvalid(P::AiryPSF) = _check_airy_lim(P) && _check_airy_eps(P)
 
-@inline _check_airy_lim(lim::Real) = finite_and_positive(lim)
-@inline _check_airy_eps(eps::Real) = (isfinite(eps) && 0.0 ≤ eps < 1.0)
+function check_structure(P::AiryPSF)
+    _check_airy_lim(P) ||
+        throw_bad_argument("bad diffraction limit value")
+    _check_airy_eps(P) ||
+        throw_bad_argument("out of range central obscuration ratio")
+end
+
+@inline _check_airy_lim(P::AiryPSF) = finite_and_positive(_get_lim(P))
+@inline _check_airy_eps(P::AiryPSF) = (e = _get_eps(P);
+                                       isfinite(e) && 0.0 ≤ e < 1.0)
 
 Base.show(io::IO, P::AiryPSF) =
     print(io, "AiryPSF(", P[1], ",", P[2], ")")
-
-@noinline throw_bad_argument(args...) = throw_bad_argument(string(args...))
-@noinline throw_bad_argument(mesg::String) = throw(ArgumentError(mesg))
 
 @inline parameters(P::AiryPSF) = getfield(P, :_prm)
 @inline obstrucated(P::AiryPSF) =  _get_eps(P) == 0
@@ -246,14 +255,13 @@ See also [`AiryPSF`](@ref), [`GaussianPSF`](@ref), [`MoffatPSF`](@ref).
 struct CauchyPSF <: AbstractPSF{1}
     fwhm::Float64
     _q::Float64
-    function CauchyPSF(fwhm::Real)
-        check_parameters(CauchyPSF, fwhm) ||
-            throw_bad_argument("bad FWHM value")
-        return new(fwhm, (fwhm/2)^2)
-    end
+    CauchyPSF(fwhm::Real) = new(fwhm, (fwhm/2)^2)
 end
 
-check_parameters(::Type{<:CauchyPSF}, fwhm::Real) = finite_and_positive(fwhm)
+@inline isvalid(P::CauchyPSF) = finite_and_positive(getfwhm(P))
+
+check_structure(P::CauchyPSF) =
+    finite_and_positive(getfwhm(P)) || throw_bad_argument("bad FWHM value")
 
 Base.show(io::IO, P::CauchyPSF) =
     print(io, "CauchyPSF(", P[1], ")")
@@ -312,14 +320,13 @@ See also [`AiryPSF`](@ref), [`CauchyPSF`](@ref), [`MoffatPSF`](@ref).
 struct GaussianPSF <: AbstractPSF{1}
     fwhm::Float64
     _q::Float64
-    function GaussianPSF(fwhm::Real)
-        check_parameters(GaussianPSF, fwhm) ||
-            throw_bad_argument("bad FWHM value")
-        return new(fwhm, -log(2.0)*(2.0/fwhm)^2)
-    end
+    GaussianPSF(fwhm::Real) = new(fwhm, -log(2.0)*(2.0/fwhm)^2)
 end
 
-check_parameters(::Type{<:GaussianPSF}, fwhm::Real) = finite_and_positive(fwhm)
+@inline isvalid(P::GaussianPSF) = finite_and_positive(getfwhm(P))
+
+check_structure(P::GaussianPSF) =
+    finite_and_positive(getfwhm(P)) || throw_bad_argument("bad FWHM value")
 
 Base.show(io::IO, P::GaussianPSF) =
     print(io, "GaussianPSF(", P[1], ")")
@@ -383,20 +390,19 @@ struct MoffatPSF <: AbstractPSF{2}
     _prm::NTuple{2,Float64}
     _p::Float64
     _q::Float64
-    function MoffatPSF(fwhm::Real, beta::Real)
-        _check_moffat_fwhm(fwhm) ||
-            throw_bad_argument("bad FWHM value")
-        _check_moffat_beta(beta) ||
-            throw_bad_argument("bad value for exponent `beta`")
-        return new((fwhm, beta), -beta, (2^(1/beta) - 1)*(2/fwhm)^2)
-    end
+    MoffatPSF(fwhm::Real, beta::Real) =
+        new((fwhm, beta), -beta, (2^(1/beta) - 1)*(2/fwhm)^2)
 end
 
-check_parameters(::Type{<:MoffatPSF}, fwhm::Real, beta::Real) =
-    _check_moffat_fwhm(fwhm) && _check_moffat_beta(beta)
+@inline isvalid(P::MoffatPSF) =
+    finite_and_positive(_get_fwhm(P)) && finite_and_positive(_get_beta(P))
 
-@inline _check_moffat_fwhm(fwhm::Real) = finite_and_positive(fwhm)
-@inline _check_moffat_beta(beta::Real) = finite_and_positive(beta)
+function check_structure(P::MoffatPSF)
+    finite_and_positive(_get_fwhm(P)) ||
+        throw_bad_argument("bad FWHM value")
+    finite_and_positive(_get_beta(P)) ||
+        throw_bad_argument("bad value for exponent `beta`")
+end
 
 Base.show(io::IO, P::MoffatPSF) =
     print(io, "MoffatPSF(", P[1], ",", P[2], ")")
@@ -453,8 +459,12 @@ for T in (:AiryPSF, :CauchyPSF, :GaussianPSF, :MoffatPSF)
     end
 end
 
-@inline finite_and_positive(x::Real) = (isfinite(x) && x > zero(x))
-#@inline finite_and_nonnegative(x::Real) = (isfinite(x) && x ≥ zero(x))
+
+@noinline throw_bad_argument(args...) = throw_bad_argument(string(args...))
+@noinline throw_bad_argument(mesg::String) = throw(ArgumentError(mesg))
+
+@inline finite_and_positive(x::Real) = (isfinite(x) && x > 0)
+@inline finite_and_nonnegative(x::Real) = (isfinite(x) && x ≥ 0)
 
 """
     to_float(T, x)

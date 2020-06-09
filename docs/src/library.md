@@ -16,4 +16,6 @@ MoffatPSF
 getfwhm
 findzeros
 PointSpreadFunctions.fit
+isvalid(::PointSpreadFunctions.AbstractPSF)
+check_structure(::PointSpreadFunctions.AbstractPSF)
 ```

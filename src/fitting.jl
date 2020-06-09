@@ -11,7 +11,6 @@ using ..PointSpreadFunctions
 using ..PointSpreadFunctions:
     AbstractPSF,
     throw_bad_argument,
-    check_parameters,
     to_float
 import ..PointSpreadFunctions: fit
 
@@ -366,8 +365,10 @@ function objfun(dat::AbstractArray{T,2},
                                           N,PSF<:AbstractPSF{N}}
     @assert length(prm) == N+2
     mdl = _model(PSF, prm)
-    mdl === nothing ? zero(Cdouble) :
-        Cdouble(objfun(dat, mdl, prm[1], prm[2], nonnegative))
+    isvalid(mdl) ?
+        Cdouble(objfun(dat, mdl, prm[1], prm[2], nonnegative)) :
+        zero(Cdouble)
+
 end
 
 function objfun(wgt::AbstractArray{T,2},
@@ -378,24 +379,15 @@ function objfun(wgt::AbstractArray{T,2},
                                           N,PSF<:AbstractPSF{N}}
     @assert length(prm) == N+2
     mdl = _model(PSF, prm)
-    mdl === nothing ? zero(Cdouble) :
-        Cdouble(objfun(wgt, dat, mdl, prm[1], prm[2], nonnegative))
+    isvalid(mdl) ?
+        Cdouble(objfun(wgt, dat, mdl, prm[1], prm[2], nonnegative)) :
+        zero(Cdouble)
 end
 
-@inline function _model(::Type{PSF},
-                        prm::Vector{Cdouble}) where {PSF<:AbstractPSF{1}}
-    @inbounds begin
-        p1 = prm[3]
-        check_parameters(PSF, p1) ? PSF(p1) : nothing
-    end
-end
+@inline _model(::Type{PSF}, prm::Vector{Cdouble}) where {PSF<:AbstractPSF{1}} =
+    PSF(prm[3])
 
-@inline function _model(::Type{PSF},
-                        prm::Vector{Cdouble}) where {PSF<:AbstractPSF{2}}
-    @inbounds begin
-        p1, p2 = prm[3], prm[4]
-        check_parameters(PSF, p1, p2) ? PSF(p1, p2) : nothing
-    end
-end
+@inline _model(::Type{PSF}, prm::Vector{Cdouble}) where {PSF<:AbstractPSF{2}} =
+    PSF(prm[3], prm[4])
 
 end # module
