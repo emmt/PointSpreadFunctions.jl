@@ -83,7 +83,7 @@ region used to perform the fit.  For example:
 will fit a Gaussian PSF model on sub-array `dat[10:30,:]`.  The advantages
 of specifying a ROI is that the relative position of the ROI is taken into
 account in the initial and final position and that a view is used instead
-of extracting a sub-array.  Specifying a ROI alos works for weighted data.
+of extracting a sub-array.  Specifying a ROI also works for weighted data.
 Non-rectangular ROIs can be emulated by having weights equal to zero where
 data should be ignored.
 
