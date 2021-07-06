@@ -1,7 +1,7 @@
 name = "PointSpreadFunctions"
 uuid = "59a21e54-00bc-4653-8d10-290de9306ebc"
 authors = ["Éric Thiébaut <https://github.com/emmt>"]
-version = "0.1.0"
+version = "0.1.1"
 
 [deps]
 OptimPack = "04a3d532-ba69-5937-989a-472689bdb720"
